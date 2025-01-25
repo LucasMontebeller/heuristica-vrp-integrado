@@ -1,4 +1,5 @@
 import random
+import math
 
 class Dados:
     """Classe que armazena os dados do problema."""
@@ -54,11 +55,9 @@ class Dados:
             [0,  0,  0,  0, 0],
         ]
         
-
-
-class Modelo:
-    """Classe base do problema, armazenando as variáveis de decisão e um gerador de soluções."""
-    def __init__(self, dados: Dados):
+class Solucao:
+    """Representa uma solução gerada para o problema."""
+    def __init__(self, X, S, B, D, W, H, M):
         """
         Variáveis de Decisão:
         ---------------------
@@ -73,64 +72,78 @@ class Modelo:
         - C[e][a]: Tempo em que a empilhadeira 'e' começa a atender o talhão 'a' (em horas).
         - M: Tempo de início do atendimento do último lote, em horas (valor contínuo).
         """
-        self.dados = dados
-        self.X = [[[0 for _ in range(dados.nL + 2)] for _ in range(dados.nL + 2)] for _ in range(dados.nV)]  # aqui entre os lotes virtuais
-        self.S = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)]
-        self.B = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)]
-        self.D = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)] 
-        self.W = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)] # essa variável parece não estar sendo preenchida.
-        self.H = [0 for _ in range(dados.nL)]
-        # self.Y = [[[0 for _ in range(dados.total_talhoes)] for _ in range(dados.total_talhoes)] for _ in range(dados.E)]
-        # self.Z = [[0 for _ in range(dados.total_talhoes)] for _ in range(dados.E)]
-        # self.C = [[0.0 for _ in range(dados.total_talhoes)] for _ in range(dados.E)]
-        self.M = 0.0
+        self.X = X 
+        self.S = S  
+        self.B = B 
+        self.D = D 
+        self.W = W 
+        self.H = H 
+        self.M = M
+        # self.Y = Y
+        # self.Z = Z
+        # self.C = C
 
-    def lotes_nao_atendidos(self):
+class Modelo:
+    """Representa o modelo que rege o problema, incluido as respectivas restrições."""
+    def __init__(self, dados: Dados):
+        self.dados = dados
+
+    def __lotes_nao_atendidos(self, S):
         """Encontra uma lista de lotes que nenhum veículo atendeu ainda."""
         lotes_atendidos = set()
         for v in self.dados.V:
             for l in self.dados.L:
-                if self.S[v - 1][l - 1] == 1:
+                if S[v - 1][l - 1] == 1:
                     lotes_atendidos.add(l - 1)
         
         return [lote for lote in self.dados.L if lote - 1 not in lotes_atendidos]
     
-    def ultimo_lote_atendido(self, k):
+    def __ultimo_lote_atendido(self, k, S, B):
         """Encontra o ultimo lote atendido pelo veiculo 'k'"""
-        return max((lote for lote in self.dados.L if self.S[k - 1][lote - 1] == 1), key=lambda lote: self.B[k - 1][lote - 1], default=None)
-
+        return max((lote for lote in self.dados.L if S[k - 1][lote - 1] == 1), key=lambda lote: B[k - 1][lote - 1], default=None)
 
     def gera_solucao_aleatoria(self):
         """Gera uma solução aleatória para o problema."""
 
+        X = [[[0 for _ in range(self.dados.nL + 2)] for _ in range(self.dados.nL + 2)] for _ in range(self.dados.nV)]  # aqui entre os lotes virtuais
+        S = [[0 for _ in range(self.dados.nL)] for _ in range(self.dados.nV)]
+        B = [[0 for _ in range(self.dados.nL)] for _ in range(self.dados.nV)]
+        D = [[0 for _ in range(self.dados.nL)] for _ in range(self.dados.nV)] 
+        W = [[0 for _ in range(self.dados.nL)] for _ in range(self.dados.nV)] # essa variável parece não estar sendo preenchida.
+        H = [0 for _ in range(self.dados.nL)]
+        # self.Y = [[[0 for _ in range(dados.total_talhoes)] for _ in range(dados.total_talhoes)] for _ in range(dados.E)]
+        # self.Z = [[0 for _ in range(dados.total_talhoes)] for _ in range(dados.E)]
+        # self.C = [[0.0 for _ in range(dados.total_talhoes)] for _ in range(dados.E)]
+        M = 0.0
+
         # Os veiculos devem partir da garagem
         for k in self.dados.V:
-            lotes_permitidos = self.lotes_nao_atendidos()
+            lotes_permitidos = self.__lotes_nao_atendidos(S)
             random_j = random.choice(lotes_permitidos)         # primeiro lote a ser atendido
-            self.X[k - 1][0][random_j] = 1
-            self.S[k - 1][random_j - 1] = 1
-            self.B[k - 1][random_j - 1] = self.dados.T_ida[random_j - 1]
-            self.D[k - 1][random_j - 1] = self.B[k - 1][random_j - 1] + self.W[k - 1][random_j - 1]
-            self.H[random_j - 1] = self.D[k - 1][random_j - 1]
+            X[k - 1][0][random_j] = 1
+            S[k - 1][random_j - 1] = 1
+            B[k - 1][random_j - 1] = self.dados.T_ida[random_j - 1]
+            D[k - 1][random_j - 1] = B[k - 1][random_j - 1] + W[k - 1][random_j - 1]
+            H[random_j - 1] = D[k - 1][random_j - 1]
 
         # Gera arcos aleatórios para os veículos, respeitando a continuidade de fluxo
         for _ in range(self.dados.nL + 2):
             k = random.choice(self.dados.V)
-            i = self.ultimo_lote_atendido(k)
-            lotes_permitidos = self.lotes_nao_atendidos()
+            i = self.__ultimo_lote_atendido(k, S, B)
+            lotes_permitidos = self.__lotes_nao_atendidos(S)
 
             if lotes_permitidos:
                 random_j = random.choice(lotes_permitidos)
-                self.X[k - 1][i][random_j] = 1
-                self.S[k - 1][random_j - 1] = 1
-                self.B[k - 1][random_j - 1] = self.B[k - 1][i - 1] + self.W[k - 1][i - 1] + self.dados.TC + self.dados.T_volta[i - 1] + self.dados.T_ida[random_j - 1]
-                self.D[k - 1][random_j - 1] = self.B[k - 1][random_j - 1] + self.W[k - 1][random_j - 1]
-                self.H[random_j - 1] = self.D[k - 1][random_j - 1]
+                X[k - 1][i][random_j] = 1
+                S[k - 1][random_j - 1] = 1
+                B[k - 1][random_j - 1] = B[k - 1][i - 1] + W[k - 1][i - 1] + self.dados.TC + self.dados.T_volta[i - 1] + self.dados.T_ida[random_j - 1]
+                D[k - 1][random_j - 1] = B[k - 1][random_j - 1] + W[k - 1][random_j - 1]
+                H[random_j - 1] = D[k - 1][random_j - 1]
 
         # Os veiculos devem terminar na garagem
         for k in self.dados.V:
-            i = self.ultimo_lote_atendido(k)
-            self.X[k - 1][i - 1][self.dados.nL + 1] = 1
+            i = self.__ultimo_lote_atendido(k, S, B)
+            X[k - 1][i][self.dados.nL + 1] = 1
 
         # Tratamento para lotes no mesmo talhão
         for i in self.dados.L:
@@ -138,18 +151,57 @@ class Modelo:
                 if i != j:
                     for a in self.dados.T:
                         if self.dados.LE[a - 1][i - 1] == 1 and self.dados.LE[a - 1][j - 1] == 1:  
-                            if self.H[i - 1] < self.H[j - 1] + self.dados.TC:
-                                self.H[i - 1] = self.H[j - 1] + self.dados.TC
-                            elif self.H[i - 1] > self.H[j - 1] - self.dados.TC:
-                                self.H[j - 1] = self.H[i - 1] - self.dados.TC
+                            if H[i - 1] < H[j - 1] + self.dados.TC:
+                                H[i - 1] = H[j - 1] + self.dados.TC
+                            elif H[i - 1] > H[j - 1] - self.dados.TC:
+                                H[j - 1] = H[i - 1] - self.dados.TC
 
         # Atualizar makespan
-        self.M = max(self.H)      
+        M = max(H)
+
+        return Solucao(X, S, B, D, W, H, M)     
+    
+class Heuristica():
+    """Classe criada para representar as heuristicas utilizadas para resolver o problema."""
+    def __init__(self, modelo: Modelo):
+        self.modelo = modelo
+
+    def aceita_nova_solucao(self, energia: float, temperatura: float):
+        """Através do fator de Boltzmann, aceita ou não a troca da solução."""
+        return True if random.random() < math.exp(-energia / temperatura) else False
+
+    def simulated_annealing(self, T_inicial = 100, alpha = 0.995):
+        T = T_inicial
+        solucao = self.modelo.gera_solucao_aleatoria() # solucao inicial
+        melhor_solucao = solucao
+        cont = 0
+        while T > 0.1:
+            nova_solucao = self.modelo.gera_solucao_aleatoria()
+
+            delta_e = nova_solucao.M - solucao.M
+
+            # redução de energia, implicando que a nova solução é melhor que a anterior
+            if delta_e < 0:
+                solucao = nova_solucao
+
+            # aumento de energia, aceita novos vizinhos com probabilidade ~ T
+            elif self.aceita_nova_solucao(delta_e, T):
+                solucao = nova_solucao
+
+            # atualiza o melhor estado
+            if solucao.M < melhor_solucao.M:
+                melhor_solucao = solucao
+
+            T*=alpha
+            cont += 1
+
+        return melhor_solucao, cont
 
 def main():
     dados = Dados()
     modelo = Modelo(dados)
-    solucao = modelo.gera_solucao_aleatoria()
+    heuristica = Heuristica(modelo)
+    solucao, iteracoes = heuristica.simulated_annealing()
     
 if __name__ == "__main__":
     main()
