@@ -101,6 +101,12 @@ class Modelo:
     def __ultimo_lote_atendido(self, k, S, B):
         """Encontra o ultimo lote atendido pelo veiculo 'k'"""
         return max((lote for lote in self.dados.L if S[k - 1][lote - 1] == 1), key=lambda lote: B[k - 1][lote - 1], default=None)
+    
+    def __get_talhao_from_lote(self, i):
+        for a in self.dados.T:
+            if self.dados.LE[a][i] == 1:
+                return a
+        return None
 
     def gera_solucao_aleatoria(self):
         """Gera uma solução aleatória para o problema."""
@@ -122,7 +128,23 @@ class Modelo:
             random_j = random.choice(lotes_permitidos)         # primeiro lote a ser atendido
             X[k - 1][0][random_j] = 1
             S[k - 1][random_j - 1] = 1
-            B[k - 1][random_j - 1] = self.dados.T_ida[random_j - 1]
+            
+            # Tratamento para lotes no mesmo talhão
+            proximo_talhao = self.__get_talhao_from_lote(random_j - 1)
+            tempo_minimo_chegada_proximo_talhao = self.dados.T_ida[random_j - 1]
+            chegada_ultimo_veiculo_talhao = max(
+                (
+                    D[v - 1][l] for v in self.dados.V if v != k 
+                    for l in range(self.dados.nL) if self.__get_talhao_from_lote(l) == proximo_talhao and S[v - 1][l] == 1
+                ),
+                default=0
+            )
+            tempo_espera_atendimento_proximo_talhao = chegada_ultimo_veiculo_talhao + self.dados.TC - tempo_minimo_chegada_proximo_talhao
+            if tempo_espera_atendimento_proximo_talhao > 0:
+                W[k - 1][random_j - 1] = tempo_espera_atendimento_proximo_talhao
+
+            # Atualiza demais variáveis temporais
+            B[k - 1][random_j - 1] = tempo_minimo_chegada_proximo_talhao
             D[k - 1][random_j - 1] = B[k - 1][random_j - 1] + W[k - 1][random_j - 1]
             H[random_j - 1] = D[k - 1][random_j - 1]
 
@@ -136,7 +158,23 @@ class Modelo:
                 random_j = random.choice(lotes_permitidos)
                 X[k - 1][i][random_j] = 1
                 S[k - 1][random_j - 1] = 1
-                B[k - 1][random_j - 1] = B[k - 1][i - 1] + W[k - 1][i - 1] + self.dados.TC + self.dados.T_volta[i - 1] + self.dados.T_ida[random_j - 1]
+
+                # Tratamento para lotes no mesmo talhão
+                proximo_talhao = self.__get_talhao_from_lote(random_j - 1)
+                tempo_minimo_chegada_proximo_talhao = B[k - 1][i - 1] + self.dados.T_volta[i - 1] + self.dados.T_ida[random_j - 1]
+                chegada_ultimo_veiculo_talhao = max(
+                    (
+                        D[v - 1][l] for v in self.dados.V if v != k 
+                        for l in range(self.dados.nL) if self.__get_talhao_from_lote(l) == proximo_talhao and S[v - 1][l] == 1
+                    ),
+                    default=0
+                )
+                tempo_espera_atendimento_proximo_talhao = chegada_ultimo_veiculo_talhao + self.dados.TC - tempo_minimo_chegada_proximo_talhao
+                if tempo_espera_atendimento_proximo_talhao > 0:
+                    W[k - 1][random_j - 1] = tempo_espera_atendimento_proximo_talhao
+
+                # Atualiza demais variáveis temporais
+                B[k - 1][random_j - 1] = tempo_minimo_chegada_proximo_talhao + W[k - 1][i - 1] + self.dados.TC
                 D[k - 1][random_j - 1] = B[k - 1][random_j - 1] + W[k - 1][random_j - 1]
                 H[random_j - 1] = D[k - 1][random_j - 1]
 
@@ -144,17 +182,6 @@ class Modelo:
         for k in self.dados.V:
             i = self.__ultimo_lote_atendido(k, S, B)
             X[k - 1][i][self.dados.nL + 1] = 1
-
-        # Tratamento para lotes no mesmo talhão
-        for i in self.dados.L:
-            for j in self.dados.L:
-                if i != j:
-                    for a in self.dados.T:
-                        if self.dados.LE[a - 1][i - 1] == 1 and self.dados.LE[a - 1][j - 1] == 1:  
-                            if H[i - 1] < H[j - 1] + self.dados.TC:
-                                H[i - 1] = H[j - 1] + self.dados.TC
-                            elif H[i - 1] > H[j - 1] - self.dados.TC:
-                                H[j - 1] = H[i - 1] - self.dados.TC
 
         # Atualizar makespan
         M = max(H)
