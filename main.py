@@ -76,10 +76,10 @@ class Modelo:
         self.dados = dados
         self.X = [[[0 for _ in range(dados.nL + 2)] for _ in range(dados.nL + 2)] for _ in range(dados.nV)]  # aqui entre os lotes virtuais
         self.S = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)]
-        self.B = [[0.0 for _ in range(dados.nL)] for _ in range(dados.nV)]
-        self.D = [[0.0 for _ in range(dados.nL)] for _ in range(dados.nV)] 
-        self.W = [[0.0 for _ in range(dados.nL)] for _ in range(dados.nV)]
-        self.H = [0.0 for _ in range(dados.nL)]
+        self.B = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)]
+        self.D = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)] 
+        self.W = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)] # essa variável parece não estar sendo preenchida.
+        self.H = [0 for _ in range(dados.nL)]
         # self.Y = [[[0 for _ in range(dados.total_talhoes)] for _ in range(dados.total_talhoes)] for _ in range(dados.E)]
         # self.Z = [[0 for _ in range(dados.total_talhoes)] for _ in range(dados.E)]
         # self.C = [[0.0 for _ in range(dados.total_talhoes)] for _ in range(dados.E)]
@@ -94,6 +94,11 @@ class Modelo:
                     lotes_atendidos.add(l - 1)
         
         return [lote for lote in self.dados.L if lote - 1 not in lotes_atendidos]
+    
+    def ultimo_lote_atendido(self, k):
+        """Encontra o ultimo lote atendido pelo veiculo 'k'"""
+        return max((lote for lote in self.dados.L if self.S[k - 1][lote - 1] == 1), key=lambda lote: self.B[k - 1][lote - 1], default=None)
+
 
     def gera_solucao_aleatoria(self):
         """Gera uma solução aleatória para o problema."""
@@ -105,79 +110,38 @@ class Modelo:
             self.X[k - 1][0][random_j] = 1
             self.S[k - 1][random_j - 1] = 1
             self.B[k - 1][random_j - 1] = self.dados.T_ida[random_j - 1]
+            self.D[k - 1][random_j - 1] = self.B[k - 1][random_j - 1] + self.W[k - 1][random_j - 1]
+            self.H[random_j - 1] = self.D[k - 1][random_j - 1]
 
         # Gera arcos aleatórios para os veículos, respeitando a continuidade de fluxo
         for _ in range(self.dados.nL + 2):
             k = random.choice(self.dados.V)
-
-            # Encontra o ultimo lote atendido pelo veiculo 'k'   
-            i = max(
-                (lote for lote in self.dados.L if self.S[k - 1][lote - 1] == 1),
-                key=lambda lote: self.B[k - 1][lote - 1])
-
+            i = self.ultimo_lote_atendido(k)
             lotes_permitidos = self.lotes_nao_atendidos()
 
             if lotes_permitidos:
                 random_j = random.choice(lotes_permitidos)
                 self.X[k - 1][i][random_j] = 1
                 self.S[k - 1][random_j - 1] = 1
-                self.B[k - 1][random_j - 1] = self.W[k - 1][i] + self.dados.TC + self.dados.T_volta[i - 1] + self.dados.T_ida[random_j - 1]
+                self.B[k - 1][random_j - 1] = self.B[k - 1][i - 1] + self.W[k - 1][i - 1] + self.dados.TC + self.dados.T_volta[i - 1] + self.dados.T_ida[random_j - 1]
+                self.D[k - 1][random_j - 1] = self.B[k - 1][random_j - 1] + self.W[k - 1][random_j - 1]
+                self.H[random_j - 1] = self.D[k - 1][random_j - 1]
 
-        # Garantir que todos os lotes sejam atendidos
-        # for i in range(self.dados.total_lotes):
-        #     if not any(self.S[k][i] for k in range(self.dados.V)):
-        #         self.S[0][i] = 1  # Atribuir lotes restantes ao primeiro veículo
+        # Os veiculos devem terminar na garagem
+        for k in self.dados.V:
+            i = self.ultimo_lote_atendido(k)
+            self.X[k - 1][i - 1][self.dados.nL + 1] = 1
 
-        # # Preencher a sequência de atendimento X[k][i][j]
-        # for k in range(self.dados.V):
-        #     atendidos = [i for i in range(self.dados.total_lotes) if self.S[k][i] == 1]
-        #     random.shuffle(atendidos)  # Embaralha a ordem de atendimento dos lotes para o veículo k
-        #     for idx in range(len(atendidos) - 1):
-        #         i, j = atendidos[idx], atendidos[idx + 1]
-        #         self.X[k][i][j] = 1
-
-        # # Embaralha os talhões para distribuição aleatória
-        # talhoes = list(range(self.dados.total_talhoes))
-        # random.shuffle(talhoes)
-
-        # talhoes_por_empilhadeira = self.dados.total_talhoes // self.dados.E
-        # talhao_atual = 0
-
-        # # Atribuir talhões às empilhadeiras de forma aleatória
-        # for e in range(self.dados.E):
-        #     for _ in range(talhoes_por_empilhadeira):
-        #         if talhao_atual < self.dados.total_talhoes:
-        #             talhao = talhoes[talhao_atual]
-        #             # Atribuir o talhão à empilhadeira e
-        #             self.Z[e][talhao] = 1
-        #             self.C[e][talhao] = self.M  # Tempo inicial de atendimento do talhão
-        #             talhao_atual += 1
-
-        # # Garantir que todos os talhões sejam atendidos
-        # for a in range(self.dados.total_talhoes):
-        #     if not any(self.Z[e][a] for e in range(self.dados.E)):
-        #         self.Z[0][a] = 1  # Atribuir talhões restantes à primeira empilhadeira
-
-        # # Preencher a sequência de atendimento Y[e][a][b]
-        # for e in range(self.dados.E):
-        #     atendidos = [a for a in range(self.dados.total_talhoes) if self.Z[e][a] == 1]
-        #     random.shuffle(atendidos)  # Embaralha a ordem de atendimento dos talhões para a empilhadeira e
-        #     for idx in range(len(atendidos) - 1):
-        #         a, b = atendidos[idx], atendidos[idx + 1]
-        #         self.Y[e][a][b] = 1
-
-        # # Atualizar tempos de deslocamento e atendimento
-        # for k in range(self.dados.V):
-        #     for i in range(self.dados.total_lotes):
-        #         if self.S[k][i] == 1:
-        #             self.B[k][i] = self.dados.T_ida[i]  # Tempo de ida da fábrica até o lote
-        #             self.D[k][i] = self.B[k][i] + self.dados.TC  # Tempo total de atendimento
-        #             self.H[i] = self.D[k][i]  # Atualizar instante de atendimento
-
-        # for e in range(self.dados.E):
-        #     for a in range(self.dados.total_talhoes):
-        #         if self.Z[e][a] == 1:
-        #             self.C[e][a] = self.dados.DE[a][a]  # Tempo de deslocamento entre talhões
+        # Tratamento para lotes no mesmo talhão
+        for i in self.dados.L:
+            for j in self.dados.L:
+                if i != j:
+                    for a in self.dados.T:
+                        if self.dados.LE[a - 1][i - 1] == 1 and self.dados.LE[a - 1][j - 1] == 1:  
+                            if self.H[i - 1] < self.H[j - 1] + self.dados.TC:
+                                self.H[i - 1] = self.H[j - 1] + self.dados.TC
+                            elif self.H[i - 1] > self.H[j - 1] - self.dados.TC:
+                                self.H[j - 1] = self.H[i - 1] - self.dados.TC
 
         # Atualizar makespan
         self.M = max(self.H)      
