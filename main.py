@@ -191,15 +191,15 @@ class Heuristica():
     def __init__(self, modelo: Modelo):
         self.modelo = modelo
 
-    def aceita_nova_solucao(self, energia: float, temperatura: float):
-        """Através do fator de Boltzmann, aceita ou não a troca da solução."""
-        return True if random.random() < math.exp(-energia / temperatura) else False
-
     def simulated_annealing(self, T_inicial = 100, alpha = 0.995):
         T = T_inicial
         solucao = self.modelo.gera_solucao_aleatoria() # solucao inicial
         melhor_solucao = solucao
         cont = 0
+
+        # Através do fator de Boltzmann, aceita ou não a troca da solução
+        aceita_nova_solucao = lambda energia, temperatura: random.random() < math.exp(-energia / temperatura)
+
         while T > 0.1:
             nova_solucao = self.modelo.gera_solucao_aleatoria()
 
@@ -210,7 +210,7 @@ class Heuristica():
                 solucao = nova_solucao
 
             # aumento de energia, aceita novos vizinhos com probabilidade ~ T
-            elif self.aceita_nova_solucao(delta_e, T):
+            elif aceita_nova_solucao(delta_e, T):
                 solucao = nova_solucao
 
             # atualiza o melhor estado
