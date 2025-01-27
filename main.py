@@ -78,7 +78,7 @@ class Solucao:
         self.D = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)] 
         self.W = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)]
         self.H = [0 for _ in range(dados.nL)]
-        self.Y = [[[0 for _ in range(dados.nT)] for _ in range(dados.nT)] for _ in range(dados.nE)]
+        self.Y = [[[0 for _ in range(dados.nT + 2)] for _ in range(dados.nT + 2)] for _ in range(dados.nE)]
         self.Z = [[0 for _ in range(dados.nT)] for _ in range(dados.nE)]
         self.C = [[0.0 for _ in range(dados.nT)] for _ in range(dados.nE)]
         self.M = 0.0
@@ -88,7 +88,7 @@ class Modelo:
     def __init__(self, dados: Dados):
         self.dados = dados
 
-    def __lotes_nao_atendidos(self, solucao: Solucao) -> list:
+    def __lotes_nao_atendidos_veiculos(self, solucao: Solucao) -> list:
         """Encontra uma lista de lotes que nenhum veículo atendeu ainda."""
         lotes_atendidos = set()
         for v in self.dados.V:
@@ -97,22 +97,36 @@ class Modelo:
                     lotes_atendidos.add(l - 1)
         
         return [lote for lote in self.dados.L if lote - 1 not in lotes_atendidos]
+
+    def __talhoes_nao_atendidos_empilhadeiras(self, solucao: Solucao) -> list:
+        """Encontra uma lista de talhões que nenhuma empilhadeira atendeu ainda."""
+        talhoes_atendidos = set()
+        for e in self.dados.E:
+            for a in self.dados.T:
+                if solucao.Z[e - 1][a - 1] == 1:
+                    talhoes_atendidos.add(a - 1)
+        
+        return [talhao for talhao in self.dados.T if talhao - 1 not in talhoes_atendidos]
     
-    def __ultimo_lote_atendido(self, k, solucao: Solucao) -> int:
+    def __ultimo_lote_atendido_veiculo(self, k, solucao: Solucao) -> int:
         """Encontra o ultimo lote atendido pelo veiculo 'k'"""
         return max((lote for lote in self.dados.L if solucao.S[k - 1][lote - 1] == 1), key=lambda lote: solucao.B[k - 1][lote - 1], default=None)
+
+    def __ultimo_tallhao_atendido_empilhadeira(self, e, solucao: Solucao) -> int:
+        """Encontra o ultimo lote atendido pela empilhadeira 'e'"""
+        return max((talhao for talhao in self.dados.T if solucao.Z[e - 1][talhao - 1] == 1), key=lambda talhao: solucao.C[e - 1][talhao - 1], default=None)
     
-    def __get_talhao_from_lote(self, i):
+    def __get_talhao_from_lote(self, i) -> int:
         for a in self.dados.T:
             if self.dados.LE[a][i] == 1:
                 return a
         return None
 
     def __add_restricoes_veiculos(self, solucao: Solucao) -> None:
-        """Adiciona as restrições dos veículos."""
+        """Adiciona as restrições dos veículos, preenchendo as respectivas variáveis na solução."""
         # Os veiculos devem partir da garagem
         for k in self.dados.V:
-            lotes_permitidos = self.__lotes_nao_atendidos(solucao)
+            lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
             random_j = random.choice(lotes_permitidos)         # primeiro lote a ser atendido
             solucao.X[k - 1][0][random_j] = 1
             solucao.S[k - 1][random_j - 1] = 1
@@ -139,8 +153,8 @@ class Modelo:
         # Gera arcos aleatórios para os veículos, respeitando a continuidade de fluxo
         for _ in range(self.dados.nL + 2):
             k = random.choice(self.dados.V)
-            i = self.__ultimo_lote_atendido(k, solucao)
-            lotes_permitidos = self.__lotes_nao_atendidos(solucao)
+            i = self.__ultimo_lote_atendido_veiculo(k, solucao)
+            lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
 
             if lotes_permitidos:
                 random_j = random.choice(lotes_permitidos)
@@ -168,11 +182,26 @@ class Modelo:
 
         # Os veiculos devem terminar na garagem
         for k in self.dados.V:
-            i = self.__ultimo_lote_atendido(k, solucao)
+            i = self.__ultimo_lote_atendido_veiculo(k, solucao)
             solucao.X[k - 1][i][self.dados.nL + 1] = 1
 
     def __add_restricoes_empilhadeiras(self, solucao: Solucao) -> None:
-        pass
+        """Adiciona as restrições das empilhadeiras, preenchendo as respectivas variáveis na solução."""
+        # as empilhadeiras devem partir do depósito
+        for e in self.dados.E:
+            talhoes_permitidos = self.__talhoes_nao_atendidos_empilhadeiras(solucao)
+            random_b = random.choice(talhoes_permitidos)          # primeiro talhao a ser atendido
+            solucao.Y[e - 1][0][random_b] = 1
+            solucao.Z[e - 1][random_b - 1] = 1
+
+        # Gera uma sequência de atendimento baseado no roteamento dos veiculos      
+        for _ in range(self.dados.nT + 2):
+            pass    
+
+        # As empilhadeiras devem terminar no depósito
+        for e in self.dados.E:
+            a = self.__ultimo_tallhao_atendido_empilhadeira(e, solucao)
+            solucao.Y[e - 1][a][self.dados.nT + 1] = 1
 
     def gera_solucao_aleatoria(self) -> Solucao:
         """Gera uma solução aleatória para o problema."""
