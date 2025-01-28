@@ -78,9 +78,9 @@ class Solucao:
         self.D = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)] 
         self.W = [[0 for _ in range(dados.nL)] for _ in range(dados.nV)]
         self.H = [0 for _ in range(dados.nL)]
-        self.Y = [[[0 for _ in range(dados.nT)] for _ in range(dados.nT)] for _ in range(dados.nE)]
+        self.Y = [[[0 for _ in range(dados.nT + 2)] for _ in range(dados.nT + 2)] for _ in range(dados.nE)]
         self.Z = [[0 for _ in range(dados.nT)] for _ in range(dados.nE)]
-        self.C = [[0.0 for _ in range(dados.nT)] for _ in range(dados.nE)]
+        self.C = [[0.0 for _ in range(dados.nT + 2)] for _ in range(dados.nE)]
         self.M = 0.0
 
 class Modelo:
@@ -88,7 +88,7 @@ class Modelo:
     def __init__(self, dados: Dados):
         self.dados = dados
 
-    def __lotes_nao_atendidos(self, solucao: Solucao) -> list:
+    def __lotes_nao_atendidos_veiculos(self, solucao: Solucao) -> list:
         """Encontra uma lista de lotes que nenhum veículo atendeu ainda."""
         lotes_atendidos = set()
         for v in self.dados.V:
@@ -98,11 +98,21 @@ class Modelo:
         
         return [lote for lote in self.dados.L if lote - 1 not in lotes_atendidos]
     
+    def __talhoes_nao_atendidos_empilhadeira(self, solucao: Solucao) -> list:
+        """Encontra uma lista de talhões que nenhuma empilhadeira atendeu ainda."""
+        talhoes_atendidos = set()
+        for e in self.dados.E:
+            for a in self.dados.T:
+                if solucao.Z[e - 1][a - 1] == 1:
+                    talhoes_atendidos.add(a - 1)
+        
+        return [talhao for talhao in self.dados.T if talhao - 1 not in talhoes_atendidos]
+    
     def __ultimo_lote_atendido(self, k, solucao: Solucao) -> int:
         """Encontra o ultimo lote atendido pelo veiculo 'k'"""
         return max((lote for lote in self.dados.L if solucao.S[k - 1][lote - 1] == 1), key=lambda lote: solucao.B[k - 1][lote - 1], default=None)
     
-    def __get_talhao_from_lote(self, i):
+    def __get_talhao_from_lote(self, i) -> int:
         for a in self.dados.T:
             if self.dados.LE[a][i] == 1:
                 return a
@@ -112,7 +122,7 @@ class Modelo:
         """Adiciona as restrições dos veículos."""
         # Os veiculos devem partir da garagem
         for k in self.dados.V:
-            lotes_permitidos = self.__lotes_nao_atendidos(solucao)
+            lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
             random_j = random.choice(lotes_permitidos)         # primeiro lote a ser atendido
             solucao.X[k - 1][0][random_j] = 1
             solucao.S[k - 1][random_j - 1] = 1
@@ -140,7 +150,7 @@ class Modelo:
         for _ in range(self.dados.nL + 2):
             k = random.choice(self.dados.V)
             i = self.__ultimo_lote_atendido(k, solucao)
-            lotes_permitidos = self.__lotes_nao_atendidos(solucao)
+            lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
 
             if lotes_permitidos:
                 random_j = random.choice(lotes_permitidos)
@@ -172,7 +182,45 @@ class Modelo:
             solucao.X[k - 1][i][self.dados.nL + 1] = 1
 
     def __add_restricoes_empilhadeiras(self, solucao: Solucao) -> None:
-        pass
+        """Adiciona as restrições relacionadas às empilhadeiras à solução."""
+
+        lotes_nao_atribuidos = set(range(len(solucao.H)))
+
+        # Atribui cada empilhadeira a um talhão, a partir da garagem
+        for e in self.dados.E:
+            talhoes_permitidos = self.__talhoes_nao_atendidos_empilhadeira(solucao)
+            
+            # Encontra o primeiro lote válido a ser atendido, i.e, aquele que o veiculo chegou primeiro e nenhuma empilhadeira atendeu ainda.
+            while len(lotes_nao_atribuidos) > 0:
+                primeiro_lote_atendido = min(lotes_nao_atribuidos, key=solucao.H.__getitem__)
+                primeiro_talhao = self.__get_talhao_from_lote(primeiro_lote_atendido)
+                lotes_nao_atribuidos.remove(primeiro_lote_atendido)
+
+                if primeiro_talhao in talhoes_permitidos:
+                    break
+
+            if primeiro_talhao is not None:
+                solucao.Y[e - 1][0][primeiro_talhao] = 1
+                solucao.Z[e - 1][primeiro_talhao - 1] = 1
+                solucao.C[e - 1][primeiro_talhao] = solucao.H[primeiro_lote_atendido]
+           
+        # Baseado no talhão inicial, atende todos os lotes deste, obedecendo a sequência pré-estabelecida pelo roteamento de veículos
+        # for e in self.dados.E:
+        #     for a in self.dados.T:
+        #         # Verifica se a empilhadeira já está atribuída ao talhão
+        #         if solucao.Z[e - 1][a - 1] == 1:
+
+        #             # Obtém os lotes pertencentes ao talhão atual, ordenados pelo tempo H (atendimento dos veículos)
+        #             lotes_do_talhao = [i for i in self.dados.L if self.__get_talhao_from_lote(i - 1) == a]
+        #             lotes_do_talhao.sort(key=lambda i: solucao.H[i - 1])  # Ordena por tempo de atendimento
+
+        lotes_ordenados_tempo = sorted(range(len(solucao.H)), key=lambda i: solucao.H[i])
+        for i in lotes_ordenados_tempo:
+            talhao = self.__get_talhao_from_lote(i)
+
+                    
+
+
 
     def gera_solucao_aleatoria(self) -> Solucao:
         """Gera uma solução aleatória para o problema."""
