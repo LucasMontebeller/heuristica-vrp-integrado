@@ -202,20 +202,33 @@ class Modelo:
                 solucao.C[empilhadeira_disponivel - 1][talhao] = solucao.H[i]
             # Verifica se já tem alguma empilhadeira atendendo o respectivo talhão
             elif any(solucao.Z[e - 1][talhao - 1] == 1 for e in self.dados.E):
-                # Caso tenha, essa empilhadeira deverá atender todos os lotes deste talhão antes de poder ir a outro.
+                # Da forma como está sendo feito, a empilhadeira não precisa atender todos os lotes no talhão para poder se movimentar para outro.
                 empilhadeira_atendendo = next((e for e in self.dados.E if solucao.Z[e - 1][talhao - 1] == 1), None)
-                # De alguma forma isso deve impactar no tempo...
-                pass
+                tempo_maximo_talhao = max((solucao.C[empilhadeira_atendendo - 1][talhao] + self.dados.TC for i in range(self.dados.nL)
+                        if self.__get_talhao_from_lote(i) == talhao and solucao.S[empilhadeira_atendendo - 1][i] == 1), default=0)
+
+                tempo_inicio_atendimento = max(tempo_maximo_talhao, solucao.H[i])
+
+                # solucao.C[empilhadeira_atendendo - 1][talhao] = tempo_inicio_atendimento
+                # solucao.Z[empilhadeira_atendendo - 1][talhao - 1] = 1
+
+                # O lote só é completamente atendido quando a empilhadeira chega nele.
+                solucao.H[i] = tempo_inicio_atendimento
             # Alguma empilhadeira precisará se deslocar para atender o respectivo talhão.
             else:
                 empilhadeira_disponivel = min(self.dados.E, key=lambda e: max(solucao.C[e - 1]))
                 ultimo_talhao = self.__ultimo_tallhao_atendido_empilhadeira(empilhadeira_disponivel, solucao)
+                tempo_deslocamento_empilhadeira = self.dados.DE[ultimo_talhao][talhao]
+                tempo_chegada_veiculo_lote, k = next(((solucao.B[k - 1][i - 1], k) for k in self.dados.V if solucao.B[k - 1][i - 1] != 0), 0)
+
                 solucao.Y[empilhadeira_disponivel - 1][ultimo_talhao][talhao] = 1
                 solucao.Z[empilhadeira_disponivel - 1][talhao - 1] = 1
-                solucao.C[empilhadeira_disponivel - 1][talhao] = solucao.H[i]
+                solucao.C[empilhadeira_disponivel - 1][talhao] = tempo_deslocamento_empilhadeira
 
-
-                    
+                # Espera do veiculo
+                solucao.W[k - 1][i] = abs(tempo_deslocamento_empilhadeira - tempo_chegada_veiculo_lote)
+                solucao.H[i] += solucao.W[k - 1][i]
+ 
     def gera_solucao_aleatoria(self) -> Solucao:
         """Gera uma solução aleatória para o problema."""
 
@@ -268,7 +281,7 @@ def main():
     dados = Dados()
     modelo = Modelo(dados)
     heuristica = Heuristica(modelo)
-    solucao, iteracoes = heuristica.simulated_annealing()
+    solucao, iteracoes = heuristica.simulated_annealing(T_inicial=1000)
     
 if __name__ == "__main__":
     main()
