@@ -158,7 +158,40 @@ class Modelo:
             lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
 
             if lotes_permitidos:
-                random_j = random.choice(lotes_permitidos)
+                ### Isso é necessário para fazer com que as empilhadeiras finalizem o atendimento dos lotes no talhão.
+                # Verifica se há talhões em que o atendimento já começou, mas ainda não finalizou
+                talhoes_iniciados = {
+                    self.__get_talhao_from_lote(l - 1)
+                        for v in self.dados.V
+                            for l in self.dados.L
+                                if solucao.S[v - 1][l - 1] == 1
+                }
+
+                # Talhões onde pelo menos um lote foi atendido e nem todos os lotes foram atendidos
+                talhoes_iniciados_nao_finalizados = {
+                    talhao
+                    for talhao in talhoes_iniciados
+                    if sum(
+                        solucao.S[v - 1][l - 1] == 1
+                            for v in self.dados.V
+                                for l in self.dados.L
+                                    if self.__get_talhao_from_lote(l - 1) == talhao
+                    ) != self.dados.LT[talhao - 1]
+                }
+
+                # Prioriza lotes em talhões que já começaram a ser atendidos
+                lotes_prioritarios = [l for l in lotes_permitidos if self.__get_talhao_from_lote(l - 1) in talhoes_iniciados_nao_finalizados]
+
+                # Ao invés de random, poderia priorizar pelo tempo T_volta(i) + T_Ida(j)
+                # random_j = random.choice(lotes_prioritarios) if lotes_prioritarios else random.choice(lotes_permitidos)
+                melhor_lote = (lambda lista: min(lista, key=(lambda j: self.dados.T_volta[i - 1] + self.dados.T_ida[j - 1])))
+
+                # Escolhe o melhor lote baseado no tempo de deslocamento
+                if lotes_prioritarios:
+                    random_j = melhor_lote(lotes_prioritarios)
+                else:
+                    random_j = melhor_lote(lotes_permitidos)
+
                 solucao.X[k - 1][i][random_j] = 1
                 solucao.S[k - 1][random_j - 1] = 1
 
