@@ -227,8 +227,8 @@ class Modelo:
         for i in lotes_ordenados_tempo:
             talhao = self.__get_talhao_from_lote(i)
 
-            if solucao.B[0] == [0, 0, 8.45, 0, 12.174999999999999, 3] and solucao.B[1] == [6.8, 2, 0, 11.1, 0, 0] and solucao.Z[0] == [0, 0, 1]:
-                print('debug')
+            # if solucao.B[0] == [0, 0, 8.45, 0, 12.174999999999999, 3] and solucao.B[1] == [6.8, 2, 0, 11.1, 0, 0] and solucao.Z[0] == [0, 0, 1]:
+            #     print('debug')
 
             # Caso seja o primeiro atendimento, i.e a empilhadeira está saindo da garagem
             if any(all(z == 0 for z in solucao.Z[e - 1]) for e in self.dados.E) and not any(solucao.Z[e - 1][talhao - 1] == 1 for e in self.dados.E):
@@ -246,7 +246,7 @@ class Modelo:
                     and self.__get_talhao_from_lote(l) == talhao  # Apenas lotes do mesmo talhão
                     and solucao.Z[empilhadeira_atendendo - 1][self.__get_talhao_from_lote(l) - 1] == 1),
                     default=0
-                ) + self.dados.TC
+                ) #+ self.dados.TC
 
                 tempo_chegada_veiculo_lote, k = next(((solucao.B[k - 1][i], k) for k in self.dados.V if solucao.B[k - 1][i] != 0), 0)
 
@@ -280,7 +280,7 @@ class Modelo:
                     key=lambda x: x[1],
                     default=(None, 0)
                 )
-                tempo_deslocamento_empilhadeira = tempo_atendimento_ultimo_lote + self.dados.DE[ultimo_talhao_atendido][talhao] + self.dados.TC
+                tempo_deslocamento_empilhadeira = tempo_atendimento_ultimo_lote + self.dados.DE[ultimo_talhao_atendido][talhao]# + self.dados.TC
                 tempo_chegada_veiculo_lote, k = next(((solucao.B[k - 1][i], k) for k in self.dados.V if solucao.B[k - 1][i] != 0), 0)
 
                 solucao.Y[empilhadeira_disponivel - 1][ultimo_talhao_atendido][talhao] = 1
@@ -306,7 +306,7 @@ class Modelo:
         self.__add_restricoes_empilhadeiras(solucao)
 
         # Atualizar makespan
-        solucao.M = max(solucao.H) - self.dados.TC
+        solucao.M = max(solucao.H) #- self.dados.TC
 
         return solucao  
     
@@ -350,7 +350,7 @@ def main():
     dados = Dados()
     modelo = Modelo(dados)
     heuristica = Heuristica(modelo)
-    solucao, iteracoes = heuristica.simulated_annealing(T_inicial=10000)
+    solucao, iteracoes = heuristica.simulated_annealing(T_inicial=20)
     
 if __name__ == "__main__":
     main()
