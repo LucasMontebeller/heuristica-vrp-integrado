@@ -221,14 +221,14 @@ class Modelo:
             solucao.X[k - 1][i][self.dados.nL + 1] = 1
 
     def __add_restricoes_empilhadeiras(self, solucao: Solucao) -> None:
-        # if solucao.S == [[0, 0, 1, 0, 1, 1], [1, 1, 0, 1, 0, 0]] and solucao.B[0][4] == 1.5 and solucao.B[1][1] == 2:
-        #     print('debug')
-
         """Adiciona as restrições relacionadas às empilhadeiras à solução."""
         # Ordena os lotes atendidos pelos veículos
         lotes_ordenados_tempo = sorted(range(len(solucao.H)), key=lambda i: solucao.H[i])
         for i in lotes_ordenados_tempo:
             talhao = self.__get_talhao_from_lote(i)
+
+            if solucao.B[0] == [0, 0, 8.45, 0, 12.174999999999999, 3] and solucao.B[1] == [6.8, 2, 0, 11.1, 0, 0] and solucao.Z[0] == [0, 0, 1]:
+                print('debug')
 
             # Caso seja o primeiro atendimento, i.e a empilhadeira está saindo da garagem
             if any(all(z == 0 for z in solucao.Z[e - 1]) for e in self.dados.E) and not any(solucao.Z[e - 1][talhao - 1] == 1 for e in self.dados.E):
@@ -238,6 +238,7 @@ class Modelo:
                 solucao.C[empilhadeira_disponivel - 1][talhao] = solucao.H[i]
             # Verifica se já tem alguma empilhadeira atendendo o respectivo talhão
             elif any(solucao.Z[e - 1][talhao - 1] == 1 for e in self.dados.E):
+                # O problema está na atualização de B. 
                 empilhadeira_atendendo = next((e for e in self.dados.E if solucao.Z[e - 1][talhao - 1] == 1), None)
                 tempo_atendimento_ultimo_lote = max(
                     (solucao.H[l] for l in lotes_ordenados_tempo
@@ -256,6 +257,12 @@ class Modelo:
                     solucao.W[k - 1][i] = tempo_atendimento_ultimo_lote - tempo_chegada_veiculo_lote
                     solucao.D[k - 1][i] = solucao.B[k - 1][i] + solucao.W[k - 1][i]
                     solucao.H[i] = solucao.D[k - 1][i]
+                    # Tem que propagar o atraso na variável B dos próximos atendimentos do veiculo
+                    for j in lotes_ordenados_tempo:
+                        if solucao.B[k - 1][j] > solucao.B[k - 1][i]:
+                            solucao.B[k - 1][j] += solucao.W[k - 1][i]
+                            solucao.H[j] = solucao.B[k - 1][j]
+
             # Alguma empilhadeira precisará se deslocar para atender o respectivo talhão.
             else:
                 # Escolhe a empilhadeira que finalizou todos os lotes do seu talhão mais cedo
@@ -285,6 +292,11 @@ class Modelo:
                     solucao.W[k - 1][i] = tempo_deslocamento_empilhadeira - tempo_chegada_veiculo_lote
                     solucao.D[k - 1][i] = solucao.B[k - 1][i] + solucao.W[k - 1][i]
                     solucao.H[i] = solucao.D[k - 1][i]
+                    # Tem que propagar o atraso na variável B dos próximos atendimentos do veiculo
+                    for j in lotes_ordenados_tempo:
+                        if solucao.B[k - 1][j] > solucao.B[k - 1][i]:
+                            solucao.B[k - 1][j] += solucao.W[k - 1][i]
+                            solucao.H[j] = solucao.B[k - 1][j]
  
     def gera_solucao_aleatoria(self) -> Solucao:
         """Gera uma solução aleatória para o problema."""
@@ -294,7 +306,7 @@ class Modelo:
         self.__add_restricoes_empilhadeiras(solucao)
 
         # Atualizar makespan
-        solucao.M = max(solucao.H)
+        solucao.M = max(solucao.H) - self.dados.TC
 
         return solucao  
     
