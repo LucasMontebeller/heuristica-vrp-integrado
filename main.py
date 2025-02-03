@@ -221,6 +221,9 @@ class Modelo:
             solucao.X[k - 1][i][self.dados.nL + 1] = 1
 
     def __add_restricoes_empilhadeiras(self, solucao: Solucao) -> None:
+        # if solucao.S == [[0, 0, 1, 0, 1, 1], [1, 1, 0, 1, 0, 0]] and solucao.B[0][4] == 1.5 and solucao.B[1][1] == 2:
+        #     print('debug')
+
         """Adiciona as restrições relacionadas às empilhadeiras à solução."""
         # Ordena os lotes atendidos pelos veículos
         lotes_ordenados_tempo = sorted(range(len(solucao.H)), key=lambda i: solucao.H[i])
@@ -236,15 +239,23 @@ class Modelo:
             # Verifica se já tem alguma empilhadeira atendendo o respectivo talhão
             elif any(solucao.Z[e - 1][talhao - 1] == 1 for e in self.dados.E):
                 empilhadeira_atendendo = next((e for e in self.dados.E if solucao.Z[e - 1][talhao - 1] == 1), None)
-                tempo_maximo_talhao = max((solucao.C[empilhadeira_atendendo - 1][talhao] + self.dados.TC for i in range(self.dados.nL)
-                        if self.__get_talhao_from_lote(i) == talhao and solucao.S[empilhadeira_atendendo - 1][i] == 1), default=0)
+                tempo_atendimento_ultimo_lote = max(
+                    (solucao.H[l] for l in lotes_ordenados_tempo
+                    if lotes_ordenados_tempo.index(l) < lotes_ordenados_tempo.index(i)  # Apenas lotes anteriores ao atual
+                    and self.__get_talhao_from_lote(l) == talhao  # Apenas lotes do mesmo talhão
+                    and solucao.Z[empilhadeira_atendendo - 1][self.__get_talhao_from_lote(l) - 1] == 1),
+                    default=0
+                ) + self.dados.TC
+
+                tempo_chegada_veiculo_lote, k = next(((solucao.B[k - 1][i], k) for k in self.dados.V if solucao.B[k - 1][i] != 0), 0)
 
                 # O lote só é completamente atendido quando a empilhadeira chega nele.
                 # O veiculo chegou primeiro
-                if (tempo_maximo_talhao > solucao.H[i]):
+                if (tempo_atendimento_ultimo_lote > tempo_chegada_veiculo_lote):
                     tempo_chegada_veiculo_lote, k = next(((solucao.B[k - 1][i], k) for k in self.dados.V if solucao.B[k - 1][i] != 0), 0)
-                    solucao.W[k - 1][i] = tempo_maximo_talhao - tempo_chegada_veiculo_lote
-                    solucao.H[i] += solucao.W[k - 1][i]
+                    solucao.W[k - 1][i] = tempo_atendimento_ultimo_lote - tempo_chegada_veiculo_lote
+                    solucao.D[k - 1][i] = solucao.B[k - 1][i] + solucao.W[k - 1][i]
+                    solucao.H[i] = solucao.D[k - 1][i]
             # Alguma empilhadeira precisará se deslocar para atender o respectivo talhão.
             else:
                 # Escolhe a empilhadeira que finalizou todos os lotes do seu talhão mais cedo
@@ -262,7 +273,7 @@ class Modelo:
                     key=lambda x: x[1],
                     default=(None, 0)
                 )
-                tempo_deslocamento_empilhadeira = tempo_atendimento_ultimo_lote + self.dados.DE[ultimo_talhao_atendido][talhao]
+                tempo_deslocamento_empilhadeira = tempo_atendimento_ultimo_lote + self.dados.DE[ultimo_talhao_atendido][talhao] + self.dados.TC
                 tempo_chegada_veiculo_lote, k = next(((solucao.B[k - 1][i], k) for k in self.dados.V if solucao.B[k - 1][i] != 0), 0)
 
                 solucao.Y[empilhadeira_disponivel - 1][ultimo_talhao_atendido][talhao] = 1
@@ -272,7 +283,8 @@ class Modelo:
                 # Veiculo ficou esperando
                 if (tempo_deslocamento_empilhadeira > tempo_chegada_veiculo_lote):
                     solucao.W[k - 1][i] = tempo_deslocamento_empilhadeira - tempo_chegada_veiculo_lote
-                    solucao.H[i] += solucao.W[k - 1][i]
+                    solucao.D[k - 1][i] = solucao.B[k - 1][i] + solucao.W[k - 1][i]
+                    solucao.H[i] = solucao.D[k - 1][i]
  
     def gera_solucao_aleatoria(self) -> Solucao:
         """Gera uma solução aleatória para o problema."""
