@@ -21,38 +21,36 @@ class Dados:
         - T_volta: Lista com o tempo de volta do lote à fábrica (calculado como 1.15 vezes o tempo de ida).
         - DE: Matriz (a, b) que representa o tempo de deslocamento entre os talhões 'a' e 'b'.
         """
-        self.nL = 10
-        self.nT = 3
-        self.nV = 3
-        self.nE = 2
-        self.TC = 0.5
+        self.nL = 8
+        self.nT = 2
+        self.nV = 2
+        self.nE = 1
+        self.TC = 1
 
         self.V = [v for v in range(1, self.nV + 1)]
         self.E = [e for e in range(1, self.nE + 1)]
         self.L = [l for l in range(1, self.nL + 1)]
         self.T = [a for a in range(1, self.nT + 1)]
 
-        self.LT = [3, 4, 3]
+        self.LT = [3, 5]
         
         # total de linhas = total de talhões 'a' + 2 virtuais
         # total de colunas = total de lotes 'i'
         self.LE = [ 
-                [0,	0, 0, 0, 0,	0, 0, 0, 0, 0],
-                [1,	1, 1, 0, 0, 0, 0, 0, 0,	0],
-                [0,	0, 0, 1, 1, 1, 1, 0, 0,	0],
-                [0,	0, 0, 0, 0, 0, 0, 1, 1,	1],
-                [0,	0, 0, 0, 0,	0, 0, 0, 0,	0],
-            ]
+            [0,	0,	0,	0,	0,	0,	0,	0],
+            [1,	1,	1,	0,	0,	0,	0,	0],
+            [0,	0,	0,	1,	1,	1,	1,	1],
+            [0,	0,	0,	0,	0,	0,	0,	0],
+        ]
         
-        self.T_ida = [2, 2, 2, 1.5, 1.5, 1.5, 1.5, 4, 4, 4]
+        self.T_ida = [0.78, 0.78, 0.78, 1.57, 1.57, 1.57, 1.57, 1.57]
         self.T_volta = [1.15 * t for t in self.T_ida]
         
         self.DE = [
-            [0,  0,  0,  0, 0],
-            [0,  0, 10, 12, 0],
-            [0, 10,  0,  9, 0],
-            [0, 12,  9,  0, 0],
-            [0,  0,  0,  0, 0],
+            [0,  0,  0, 0],
+            [0,  0, 3.03, 0],
+            [0, 3.03,  0, 0],
+            [0,  0,  0, 0],
         ]
         
 class Solucao:
@@ -134,14 +132,18 @@ class Modelo:
             # Tratamento para lotes no mesmo talhão
             proximo_talhao = self.__get_talhao_from_lote(random_j - 1)
             tempo_minimo_chegada_proximo_talhao = self.dados.T_ida[random_j - 1]
-            chegada_ultimo_veiculo_talhao = max(
+            tempo_finalizacao_ultimo_veiculo_lote = max(
                 (
                     solucao.D[v - 1][l] for v in self.dados.V if v != k 
                     for l in range(self.dados.nL) if self.__get_talhao_from_lote(l) == proximo_talhao and solucao.S[v - 1][l] == 1
                 ),
                 default=0
             )
-            tempo_espera_atendimento_proximo_talhao = chegada_ultimo_veiculo_talhao + self.dados.TC - tempo_minimo_chegada_proximo_talhao
+
+            tempo_espera_atendimento_proximo_talhao = 0
+            if tempo_finalizacao_ultimo_veiculo_lote > 0:
+                tempo_espera_atendimento_proximo_talhao = tempo_finalizacao_ultimo_veiculo_lote + self.dados.TC - tempo_minimo_chegada_proximo_talhao
+
             if tempo_espera_atendimento_proximo_talhao > 0:
                 solucao.W[k - 1][random_j - 1] = tempo_espera_atendimento_proximo_talhao
 
@@ -151,9 +153,16 @@ class Modelo:
             solucao.H[random_j - 1] = solucao.D[k - 1][random_j - 1]
 
         # Gera arcos aleatórios para os veículos, respeitando a continuidade de fluxo
-        # Podemos melhorar essa abordagem pegando por exemplo o caminho mais curto entre o veiculo e o lote.
         for _ in range(self.dados.nL + 2):
-            k = random.choice(self.dados.V)
+            # k = random.choice(self.dados.V)
+            # Pega o veiculo que terminou o atendimento no ultimo lote mais cedo
+            k = min(
+                    self.dados.V,
+                    key=lambda v: max(
+                        solucao.H[i] for i in range(self.dados.nL)
+                        if solucao.S[v - 1][i] == 1
+                    )
+                )
             i = self.__ultimo_lote_atendido_veiculo(k, solucao)
             lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
 
@@ -179,6 +188,9 @@ class Modelo:
                     ) != self.dados.LT[talhao - 1]
                 }
 
+                # if solucao.B[0][0] == 0.78 and solucao.B[1][2] == 0.78:
+                #     print('debug')
+
                 # Prioriza lotes em talhões que já começaram a ser atendidos
                 lotes_prioritarios = [l for l in lotes_permitidos if self.__get_talhao_from_lote(l - 1) in talhoes_iniciados_nao_finalizados]
 
@@ -197,20 +209,21 @@ class Modelo:
 
                 # Tratamento para lotes no mesmo talhão
                 proximo_talhao = self.__get_talhao_from_lote(random_j - 1)
-                tempo_minimo_chegada_proximo_talhao = solucao.B[k - 1][i - 1] + self.dados.T_volta[i - 1] + self.dados.T_ida[random_j - 1]
-                chegada_ultimo_veiculo_talhao = max(
+                tempo_minimo_chegada_proximo_talhao = solucao.D[k - 1][i - 1] + self.dados.TC + self.dados.T_volta[i - 1] + self.dados.T_ida[random_j - 1]
+                tempo_inicio_atendimento_ultimo_veiculo_lote = max(
                     (
                         solucao.D[v - 1][l] for v in self.dados.V if v != k 
                         for l in range(self.dados.nL) if self.__get_talhao_from_lote(l) == proximo_talhao and solucao.S[v - 1][l] == 1
                     ),
                     default=0
                 )
-                tempo_espera_atendimento_proximo_talhao = chegada_ultimo_veiculo_talhao + self.dados.TC - tempo_minimo_chegada_proximo_talhao
+
+                tempo_espera_atendimento_proximo_talhao = tempo_inicio_atendimento_ultimo_veiculo_lote + self.dados.TC - tempo_minimo_chegada_proximo_talhao
                 if tempo_espera_atendimento_proximo_talhao > 0:
                     solucao.W[k - 1][random_j - 1] = tempo_espera_atendimento_proximo_talhao
 
                 # Atualiza demais variáveis temporais
-                solucao.B[k - 1][random_j - 1] = tempo_minimo_chegada_proximo_talhao + solucao.W[k - 1][i - 1] + self.dados.TC
+                solucao.B[k - 1][random_j - 1] = tempo_minimo_chegada_proximo_talhao # + solucao.W[k - 1][i - 1] # + self.dados.TC
                 solucao.D[k - 1][random_j - 1] = solucao.B[k - 1][random_j - 1] + solucao.W[k - 1][random_j - 1]
                 solucao.H[random_j - 1] = solucao.D[k - 1][random_j - 1]
 
@@ -227,8 +240,8 @@ class Modelo:
         for i in lotes_ordenados_tempo:
             talhao = self.__get_talhao_from_lote(i)
 
-            # if solucao.B[0] == [0, 0, 8.45, 0, 12.174999999999999, 3] and solucao.B[1] == [6.8, 2, 0, 11.1, 0, 0] and solucao.Z[0] == [0, 0, 1]:
-            #     print('debug')
+            if solucao.D[0][0] == 0.78 and solucao.D[0][1] == 3.457 and solucao.D[1][2] == 1.78:
+                print('debug')
 
             # Caso seja o primeiro atendimento, i.e a empilhadeira está saindo da garagem
             if any(all(z == 0 for z in solucao.Z[e - 1]) for e in self.dados.E) and not any(solucao.Z[e - 1][talhao - 1] == 1 for e in self.dados.E):
@@ -240,28 +253,30 @@ class Modelo:
             elif any(solucao.Z[e - 1][talhao - 1] == 1 for e in self.dados.E):
                 # O problema está na atualização de B. 
                 empilhadeira_atendendo = next((e for e in self.dados.E if solucao.Z[e - 1][talhao - 1] == 1), None)
-                tempo_atendimento_ultimo_lote = max(
+                tempo_inicio_atendimento_ultimo_lote = max(
                     (solucao.H[l] for l in lotes_ordenados_tempo
                     if lotes_ordenados_tempo.index(l) < lotes_ordenados_tempo.index(i)  # Apenas lotes anteriores ao atual
                     and self.__get_talhao_from_lote(l) == talhao  # Apenas lotes do mesmo talhão
                     and solucao.Z[empilhadeira_atendendo - 1][self.__get_talhao_from_lote(l) - 1] == 1),
                     default=0
-                ) #+ self.dados.TC
+                )
+                tempo_finaliza_atendimento_ultimo_lote = tempo_inicio_atendimento_ultimo_lote + self.dados.TC
 
                 tempo_chegada_veiculo_lote, k = next(((solucao.B[k - 1][i], k) for k in self.dados.V if solucao.B[k - 1][i] != 0), 0)
 
                 # O lote só é completamente atendido quando a empilhadeira chega nele.
                 # O veiculo chegou primeiro
-                if (tempo_atendimento_ultimo_lote > tempo_chegada_veiculo_lote):
+                if (tempo_finaliza_atendimento_ultimo_lote > tempo_chegada_veiculo_lote):
                     tempo_chegada_veiculo_lote, k = next(((solucao.B[k - 1][i], k) for k in self.dados.V if solucao.B[k - 1][i] != 0), 0)
-                    solucao.W[k - 1][i] = tempo_atendimento_ultimo_lote - tempo_chegada_veiculo_lote
+                    solucao.W[k - 1][i] = tempo_finaliza_atendimento_ultimo_lote - tempo_chegada_veiculo_lote
                     solucao.D[k - 1][i] = solucao.B[k - 1][i] + solucao.W[k - 1][i]
                     solucao.H[i] = solucao.D[k - 1][i]
                     # Tem que propagar o atraso na variável B dos próximos atendimentos do veiculo
-                    for j in lotes_ordenados_tempo:
-                        if solucao.B[k - 1][j] > solucao.B[k - 1][i]:
-                            solucao.B[k - 1][j] += solucao.W[k - 1][i]
-                            solucao.H[j] = solucao.B[k - 1][j]
+                    # for j in lotes_ordenados_tempo:
+                    #     if solucao.B[k - 1][j] > solucao.B[k - 1][i]:
+                    #         solucao.B[k - 1][j] += solucao.W[k - 1][i]
+                    #         solucao.D[k - 1][j] += solucao.W[k - 1][i]
+                    #         solucao.H[j] = solucao.B[k - 1][j]
 
             # Alguma empilhadeira precisará se deslocar para atender o respectivo talhão.
             else:
@@ -274,13 +289,13 @@ class Modelo:
                     )
                 )
                 ultimo_talhao_atendido = self.__ultimo_tallhao_atendido_empilhadeira(empilhadeira_disponivel, solucao)
-                ultimo_lote_atendido, tempo_atendimento_ultimo_lote = max(
+                ultimo_lote_atendido, tempo_inicio_atendimento_ultimo_lote = max(
                     ((i, solucao.H[i]) for i in range(self.dados.nL) 
                         if self.__get_talhao_from_lote(i) == ultimo_talhao_atendido and solucao.Z[empilhadeira_disponivel - 1][self.__get_talhao_from_lote(i) - 1] == 1),
                     key=lambda x: x[1],
                     default=(None, 0)
                 )
-                tempo_deslocamento_empilhadeira = tempo_atendimento_ultimo_lote + self.dados.DE[ultimo_talhao_atendido][talhao]# + self.dados.TC
+                tempo_deslocamento_empilhadeira = tempo_inicio_atendimento_ultimo_lote + self.dados.TC + self.dados.DE[ultimo_talhao_atendido][talhao]
                 tempo_chegada_veiculo_lote, k = next(((solucao.B[k - 1][i], k) for k in self.dados.V if solucao.B[k - 1][i] != 0), 0)
 
                 solucao.Y[empilhadeira_disponivel - 1][ultimo_talhao_atendido][talhao] = 1
@@ -296,6 +311,7 @@ class Modelo:
                     for j in lotes_ordenados_tempo:
                         if solucao.B[k - 1][j] > solucao.B[k - 1][i]:
                             solucao.B[k - 1][j] += solucao.W[k - 1][i]
+                            solucao.D[k - 1][j] += solucao.W[k - 1][i]
                             solucao.H[j] = solucao.B[k - 1][j]
  
     def gera_solucao_aleatoria(self) -> Solucao:
