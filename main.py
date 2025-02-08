@@ -21,36 +21,38 @@ class Dados:
         - T_volta: Lista com o tempo de volta do lote à fábrica (calculado como 1.15 vezes o tempo de ida).
         - DE: Matriz (a, b) que representa o tempo de deslocamento entre os talhões 'a' e 'b'.
         """
-        self.nL = 8
-        self.nT = 2
+        self.nL = 6
+        self.nT = 3
         self.nV = 2
-        self.nE = 1
-        self.TC = 1
+        self.nE = 2
+        self.TC = 0.5
 
         self.V = [v for v in range(1, self.nV + 1)]
         self.E = [e for e in range(1, self.nE + 1)]
         self.L = [l for l in range(1, self.nL + 1)]
         self.T = [a for a in range(1, self.nT + 1)]
 
-        self.LT = [3, 5]
+        self.LT = [2, 3, 1]
         
         # total de linhas = total de talhões 'a' + 2 virtuais
         # total de colunas = total de lotes 'i'
         self.LE = [ 
-            [0,	0,	0,	0,	0,	0,	0,	0],
-            [1,	1,	1,	0,	0,	0,	0,	0],
-            [0,	0,	0,	1,	1,	1,	1,	1],
-            [0,	0,	0,	0,	0,	0,	0,	0],
+            [0,	0,	0,	0,	0,	0],
+            [1,	1,	0,	0,	0,	0],
+            [0,	0,	1,	1,	1,	0],
+            [0,	0,	0,	0,	0,	1],
+            [0,	0,	0,	0,	0,	0],
         ]
         
-        self.T_ida = [0.78, 0.78, 0.78, 1.57, 1.57, 1.57, 1.57, 1.57]
+        self.T_ida = [2, 2, 1.5, 1.5, 1.5, 3]
         self.T_volta = [1.15 * t for t in self.T_ida]
         
         self.DE = [
-            [0,  0,  0, 0],
-            [0,  0, 3.03, 0],
-            [0, 3.03,  0, 0],
-            [0,  0,  0, 0],
+            [0,  0,  0,  0, 0],
+            [0,  0, 10, 12, 0],
+            [0, 10,  0,  9, 0],
+            [0, 12,  9,  0, 0],
+            [0,  0,  0,  0, 0],
         ]
         
 class Solucao:
@@ -188,9 +190,6 @@ class Modelo:
                     ) != self.dados.LT[talhao - 1]
                 }
 
-                # if solucao.B[0][0] == 0.78 and solucao.B[1][2] == 0.78:
-                #     print('debug')
-
                 # Prioriza lotes em talhões que já começaram a ser atendidos
                 lotes_prioritarios = [l for l in lotes_permitidos if self.__get_talhao_from_lote(l - 1) in talhoes_iniciados_nao_finalizados]
 
@@ -239,9 +238,6 @@ class Modelo:
         lotes_ordenados_tempo = sorted(range(len(solucao.H)), key=lambda i: solucao.H[i])
         for i in lotes_ordenados_tempo:
             talhao = self.__get_talhao_from_lote(i)
-
-            if solucao.D[0][0] == 0.78 and solucao.D[0][1] == 3.457 and solucao.D[1][2] == 1.78:
-                print('debug')
 
             # Caso seja o primeiro atendimento, i.e a empilhadeira está saindo da garagem
             if any(all(z == 0 for z in solucao.Z[e - 1]) for e in self.dados.E) and not any(solucao.Z[e - 1][talhao - 1] == 1 for e in self.dados.E):
@@ -322,7 +318,7 @@ class Modelo:
         self.__add_restricoes_empilhadeiras(solucao)
 
         # Atualizar makespan
-        solucao.M = max(solucao.H) #- self.dados.TC
+        solucao.M = max(solucao.H) - self.dados.TC # O otimizado não está considerando isso para o ultimo lote.
 
         return solucao  
     
