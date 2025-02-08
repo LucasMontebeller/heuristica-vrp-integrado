@@ -21,9 +21,9 @@ class Dados:
         - T_volta: Lista com o tempo de volta do lote à fábrica (calculado como 1.15 vezes o tempo de ida).
         - DE: Matriz (a, b) que representa o tempo de deslocamento entre os talhões 'a' e 'b'.
         """
-        self.nL = 6
+        self.nL = 10
         self.nT = 3
-        self.nV = 2
+        self.nV = 3
         self.nE = 2
         self.TC = 0.5
 
@@ -32,19 +32,19 @@ class Dados:
         self.L = [l for l in range(1, self.nL + 1)]
         self.T = [a for a in range(1, self.nT + 1)]
 
-        self.LT = [2, 3, 1]
+        self.LT = [3, 4, 3]
         
         # total de linhas = total de talhões 'a' + 2 virtuais
         # total de colunas = total de lotes 'i'
         self.LE = [ 
-            [0,	0,	0,	0,	0,	0],
-            [1,	1,	0,	0,	0,	0],
-            [0,	0,	1,	1,	1,	0],
-            [0,	0,	0,	0,	0,	1],
-            [0,	0,	0,	0,	0,	0],
-        ]
+                [0,	0, 0, 0, 0,	0, 0, 0, 0, 0],
+                [1,	1, 1, 0, 0, 0, 0, 0, 0,	0],
+                [0,	0, 0, 1, 1, 1, 1, 0, 0,	0],
+                [0,	0, 0, 0, 0, 0, 0, 1, 1,	1],
+                [0,	0, 0, 0, 0,	0, 0, 0, 0,	0],
+            ]
         
-        self.T_ida = [2, 2, 1.5, 1.5, 1.5, 3] 
+        self.T_ida = [2, 2, 2, 1.5, 1.5, 1.5, 1.5, 4, 4, 4]
         self.T_volta = [1.15 * t for t in self.T_ida]
         
         self.DE = [
@@ -315,7 +315,7 @@ class Heuristica():
     def __init__(self, modelo: Modelo):
         self.modelo = modelo
 
-    def simulated_annealing(self, T_inicial = 100, alpha = 0.995):
+    def simulated_annealing(self, T_inicial = 100, alpha = 0.995, max_exec = 500):
         T = T_inicial
         solucao = self.modelo.gera_solucao_aleatoria() # solucao inicial
         melhor_solucao = solucao
@@ -324,7 +324,7 @@ class Heuristica():
         # Através do fator de Boltzmann, aceita ou não a troca da solução
         aceita_nova_solucao = lambda energia, temperatura: random.random() < math.exp(-energia / temperatura)
 
-        while T > 0.1:
+        while T > 0.1 and cont < max_exec:
             nova_solucao = self.modelo.gera_solucao_aleatoria()
 
             delta_e = nova_solucao.M - solucao.M
@@ -350,7 +350,7 @@ def main():
     dados = Dados()
     modelo = Modelo(dados)
     heuristica = Heuristica(modelo)
-    solucao, iteracoes = heuristica.simulated_annealing(T_inicial=20)
+    solucao, iteracoes = heuristica.simulated_annealing(max_exec=20000)
     
 if __name__ == "__main__":
     main()
