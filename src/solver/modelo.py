@@ -237,6 +237,6 @@ class Modelo:
         self.__add_restricoes_empilhadeiras(solucao)
 
         # Atualizar makespan
-        solucao.M = max(solucao.H) - self.dados.TC # O otimizado não está considerando isso para o ultimo lote.
+        solucao.M = max(solucao.H) # - self.dados.TC. # Agora essa variável representa o instante de atendimento do ultimo lote (ajustar na dissertação).
 
         return solucao
