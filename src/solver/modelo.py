@@ -32,8 +32,8 @@ class Modelo:
         return max((lote for lote in self.dados.L if solucao.S[k - 1][lote - 1] == 1), key=lambda lote: solucao.B[k - 1][lote - 1], default=None)
 
     def __ultimo_tallhao_atendido_empilhadeira(self, e, solucao: Solucao) -> int:
-        """Encontra o ultimo lote atendido pela empilhadeira 'e'"""
-        return max((talhao for talhao in self.dados.T if solucao.Z[e - 1][talhao - 1] == 1), key=lambda talhao: solucao.C[e - 1][talhao - 1], default=None)
+        """Encontra o ultimo talhão atendido pela empilhadeira 'e'"""
+        return max((talhao for talhao in self.dados.T if solucao.Z[e - 1][talhao - 1] == 1), key=lambda talhao: solucao.C[e - 1][talhao], default=None)
     
     def __get_talhao_from_lote(self, i) -> int:
         for a in self.dados.T:

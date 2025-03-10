@@ -1,8 +1,9 @@
 import json
 import os
+import time
 from solver import Dados, Modelo, Heuristica
 
-def carregar_dados() -> list[Dados]:
+def carregar_dados() -> list[tuple[str, Dados]]:
     pasta = "data"
     arquivos_json = [f for f in os.listdir(pasta) if f.endswith(".json")]
     
@@ -18,20 +19,28 @@ def carregar_dados() -> list[Dados]:
     
     return dados_lista
 
-def executa_instancias(instancias: list[tuple[str, Dados]]) -> dict[str, any]:
+def executa_instancias(instancias: list[tuple[str, Dados]]) -> dict[str, dict]:
     solucoes = {}
     for arquivo, dados in instancias:
+        inicio = time.time()
+        
         modelo = Modelo(dados)
         heuristica = Heuristica(modelo)
         solucao, iteracoes = heuristica.simulated_annealing(max_exec=20000)
-        solucoes[arquivo] = solucao
+        
+        tempo_execucao = time.time() - inicio
+        
+        solucoes[arquivo] = {
+            "solucao": solucao,
+            "tempo_execucao": tempo_execucao
+        }
     return solucoes
 
 def main():
     dados = carregar_dados()
     solucoes = executa_instancias(dados)
-    for arquivo, sol in solucoes.items():
-        print(f"{arquivo} - {sol.M}")
+    for arquivo, resultado in solucoes.items():
+        print(f"{arquivo} - Solução: {resultado['solucao'].M}, Tempo: {resultado['tempo_execucao']:.4f} segundos")
 
 if __name__ == "__main__":
     main()
