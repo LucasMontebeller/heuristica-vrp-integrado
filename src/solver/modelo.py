@@ -40,13 +40,22 @@ class Modelo:
             if self.dados.LE[a][i] == 1:
                 return a
         return None
+    
+    def __get_proximo_lote(self, lote_inicial, lotes_permitidos, random_selection = True) -> int:
+        """Escolhe o próximo lote a ser atendido."""
+        if random_selection:
+            return random.choice(lotes_permitidos)
+        else:
+            # Escolhe o melhor lote baseado no tempo de deslocamento
+            melhor_lote = (lambda lista: min(lista, key=(lambda j: self.dados.T_volta[lote_inicial - 1] + self.dados.T_ida[j - 1])))
+            return melhor_lote(lotes_permitidos)
 
     def __add_restricoes_veiculos(self, solucao: Solucao) -> None:
         """Adiciona as restrições dos veiculos, preenchendo as respectivas variáveis na solução."""
         # Os veiculos devem partir da garagem
         for k in self.dados.V:
             lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
-            random_j = random.choice(lotes_permitidos)         # primeiro lote a ser atendido
+            random_j = self.__get_proximo_lote(0, lotes_permitidos, True)         # primeiro lote a ser atendido
             solucao.X[k - 1][0][random_j] = 1
             solucao.S[k - 1][random_j - 1] = 1
             
@@ -111,16 +120,7 @@ class Modelo:
 
                 # Prioriza lotes em talhões que já começaram a ser atendidos
                 lotes_prioritarios = [l for l in lotes_permitidos if self.__get_talhao_from_lote(l - 1) in talhoes_iniciados_nao_finalizados]
-
-                # Ao invés de random, poderia priorizar pelo tempo T_volta(i) + T_Ida(j)
-                # random_j = random.choice(lotes_prioritarios) if lotes_prioritarios else random.choice(lotes_permitidos)
-                melhor_lote = (lambda lista: min(lista, key=(lambda j: self.dados.T_volta[i - 1] + self.dados.T_ida[j - 1])))
-
-                # Escolhe o melhor lote baseado no tempo de deslocamento
-                if lotes_prioritarios:
-                    random_j = melhor_lote(lotes_prioritarios)
-                else:
-                    random_j = melhor_lote(lotes_permitidos)
+                random_j = self.__get_proximo_lote(i, lotes_prioritarios or lotes_permitidos, True)
 
                 solucao.X[k - 1][i][random_j] = 1
                 solucao.S[k - 1][random_j - 1] = 1
