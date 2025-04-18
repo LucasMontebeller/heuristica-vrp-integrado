@@ -32,7 +32,6 @@ class Modelo:
             lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
 
         # Os veiculos devem terminar na garagem
-        # Isso não gera nenhum impacto no resultado, apenas garante integridade
         self.__rotear_veiculos_volta_garagem(solucao)
 
     def add_restricoes_empilhadeiras(self, solucao: Solucao) -> None:
@@ -150,12 +149,13 @@ class Modelo:
         inicio_atendimento_l2 = nova_solucao.B[k2 - 1][l2 - 1]
 
         # Alterações
-        self.__corte_espaco_temporal(k1, l1, l2, nova_solucao)
+        self.__corte_espaco_temporal(k1, l1, l2, nova_solucao, True)
         self.__propaga_alteracoes_veiculos(k1, inicio_atendimento_l1, nova_solucao)
 
         self.__corte_espaco_temporal(k2, l2, l1, nova_solucao)
         self.__propaga_alteracoes_veiculos(k2, inicio_atendimento_l2, nova_solucao)
 
+        nova_solucao.solucao_veiculos = deepcopy(nova_solucao)
         # Recalcula empilhadeiras com base na nova ordem de H
         self.add_restricoes_empilhadeiras(nova_solucao)
 
@@ -164,28 +164,29 @@ class Modelo:
 
         return nova_solucao
         
-    def __corte_espaco_temporal(self, k, i_old, i_new, solucao: Solucao) -> None:
+    def __corte_espaco_temporal(self, k, i_old, i_new, solucao: Solucao, primeira_execucao = False) -> None:
         """Realiza o swap entre dois lotes."""
         anterior = self.__get_lote_atendimento_anterior(k, i_old, solucao)
         posterior = self.__get_lote_atendimento_posterior(k, i_old, solucao)
-
         # Remove o lote antigo
         solucao.X[k - 1][anterior][i_old] = 0
         solucao.X[k - 1][i_old][posterior] = 0
         solucao.S[k - 1][i_old - 1] = 0
 
-        # Limpa variáveis temporais do lote removido
-        solucao.W[k - 1][i_old - 1] = 0
-        solucao.B[k - 1][i_old - 1] = 0
-        solucao.D[k - 1][i_old - 1] = 0
-        solucao.H[i_old - 1] = 0
+        if primeira_execucao:
+            # Limpa variáveis temporais do lote removido
+            solucao.W[k - 1][i_old - 1] = 0
+            solucao.B[k - 1][i_old - 1] = 0
+            solucao.D[k - 1][i_old - 1] = 0
+            solucao.H[i_old - 1] = 0
 
         # Propor as novas conexões: (anterior, i_new) e (i_new, posterior) 
         self.__rotear_veiculo(k, anterior, i_new, solucao)
-        self.__atualizar_variaveis_temporais(k, anterior, i_new, solucao)
+        self.__atualizar_variaveis_temporais(k, anterior, i_new, solucao, True)
 
-        self.__rotear_veiculo(k, i_new, posterior, solucao)
-        self.__atualizar_variaveis_temporais(k, i_new, posterior, solucao)
+        if posterior != len(solucao.S[0]) + 1: # garagem
+            self.__rotear_veiculo(k, i_new, posterior, solucao)
+            self.__atualizar_variaveis_temporais(k, i_new, posterior, solucao, True)
 
     def __propaga_alteracoes_veiculos(self, k, inicio_atendimento_lote, solucao: Solucao) -> None:
         """Propaga as alterações do Swap nas variáveis temporais e espaciais."""
@@ -199,7 +200,7 @@ class Modelo:
         return next(i for i in range(self.dados.nL + 1) if solucao.X[k - 1][i][j] == 1)
     
     def __get_lote_atendimento_posterior(self, k, i, solucao: Solucao) -> int:
-        return next(j for j in range(1, self.dados.nL + 2) if solucao.X[k - 1][i][j] == 1)
+        return next((j for j in range(1, self.dados.nL + 2) if solucao.X[k - 1][i][j] == 1), len(solucao.S[0]) + 1) # garagem pode ter sido removida
     
     def __lotes_nao_atendidos_veiculos(self, solucao: Solucao) -> list:
         """Encontra uma lista de lotes que nenhum veículo atendeu ainda."""
@@ -286,7 +287,7 @@ class Modelo:
         solucao.X[k - 1][i][j] = 1
         solucao.S[k - 1][j - 1] = 1
 
-    def __atualizar_variaveis_temporais(self, k, i, j, solucao: Solucao) -> None:
+    def __atualizar_variaveis_temporais(self, k, i, j, solucao: Solucao, swap = False) -> None:
         """Preenche as variáveis W[k][j], B[k][j], D[k][j] e H[j]"""
         # Tratamento para lotes no mesmo talhão
         proximo_talhao = self.__get_talhao_from_lote(j - 1)
@@ -304,7 +305,7 @@ class Modelo:
         )
 
         tempo_espera_atendimento_proximo_talhao = 0
-        if tempo_inicio_atendimento_ultimo_veiculo_lote > 0:
+        if (not swap and tempo_inicio_atendimento_ultimo_veiculo_lote > 0) or (swap and tempo_inicio_atendimento_ultimo_veiculo_lote < tempo_minimo_chegada_proximo_talhao):
             tempo_espera_atendimento_proximo_talhao = tempo_inicio_atendimento_ultimo_veiculo_lote + self.dados.TC - tempo_minimo_chegada_proximo_talhao
 
         if tempo_espera_atendimento_proximo_talhao > 0:
