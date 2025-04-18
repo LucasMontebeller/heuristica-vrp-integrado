@@ -118,6 +118,7 @@ class Modelo:
 
         solucao = Solucao(self.dados)
         self.add_restricoes_veiculos(solucao)
+        solucao.solucao_veiculos = deepcopy(solucao)
         self.add_restricoes_empilhadeiras(solucao)
 
         # Atualizar makespan
@@ -128,10 +129,9 @@ class Modelo:
     def gera_solucao_vizinha(self, solucao: Solucao) -> Solucao:
         return self.__swap_veiculos(solucao)
     
-    def __swap_veiculos(self, solucao_anterior: Solucao):
+    def __swap_veiculos(self, solucao: Solucao):
         """Gera uma solução vizinha atráves de swap entre dois veiculos."""
-        solucao = deepcopy(solucao_anterior)
-        nova_solucao = Solucao(self.dados)
+        nova_solucao = deepcopy(solucao.solucao_veiculos)
 
         veiculos = list(self.dados.V)
         lotes = list(self.dados.L)
@@ -139,22 +139,22 @@ class Modelo:
         # Escolhe aleatoriamente dois veiculos para o swap
         k1, k2 = random.sample(veiculos, 2)
 
-        lotes_k1 = [l for l in lotes if solucao.S[k1 - 1][l - 1] == 1 and solucao.S[k2 - 1][l - 1] == 0]
-        lotes_k2 = [l for l in lotes if solucao.S[k2 - 1][l - 1] == 1 and solucao.S[k1 - 1][l - 1] == 0]
+        lotes_k1 = [l for l in lotes if nova_solucao.S[k1 - 1][l - 1] == 1 and nova_solucao.S[k2 - 1][l - 1] == 0]
+        lotes_k2 = [l for l in lotes if nova_solucao.S[k2 - 1][l - 1] == 1 and nova_solucao.S[k1 - 1][l - 1] == 0]
 
         # Escolhe aleatoriamente dois lotes para o swap
         l1 = random.choice(lotes_k1)
         l2 = random.choice(lotes_k2)
 
-        inicio_atendimento_l1 = solucao.B[k1 - 1][l1 - 1]
-        inicio_atendimento_l2 = solucao.B[k2 - 1][l2 - 1]
+        inicio_atendimento_l1 = nova_solucao.B[k1 - 1][l1 - 1]
+        inicio_atendimento_l2 = nova_solucao.B[k2 - 1][l2 - 1]
 
         # Alterações
-        self.__corte_espaco_temporal(k1, l1, l2, solucao)
-        self.__propaga_alteracoes_veiculos(k1, inicio_atendimento_l1, solucao)
+        self.__corte_espaco_temporal(k1, l1, l2, nova_solucao)
+        self.__propaga_alteracoes_veiculos(k1, inicio_atendimento_l1, nova_solucao)
 
-        self.__corte_espaco_temporal(k2, l2, l1, solucao)
-        self.__propaga_alteracoes_veiculos(k2, inicio_atendimento_l2, solucao)
+        self.__corte_espaco_temporal(k2, l2, l1, nova_solucao)
+        self.__propaga_alteracoes_veiculos(k2, inicio_atendimento_l2, nova_solucao)
 
         # Recalcula empilhadeiras com base na nova ordem de H
         self.add_restricoes_empilhadeiras(nova_solucao)

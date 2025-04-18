@@ -22,6 +22,9 @@ def carregar_dados() -> list[tuple[str, Dados]]:
 def executa_instancias(instancias: list[tuple[str, Dados]]) -> dict[str, dict]:
     solucoes = {}
     for arquivo, dados in instancias:
+        if arquivo != 'exp0_inicial.json':
+            continue
+        
         inicio = time.time()
         
         modelo = Modelo(dados)

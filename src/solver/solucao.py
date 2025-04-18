@@ -26,4 +26,6 @@ class Solucao:
         self.Y = [[[0 for _ in range(dados.nT + 2)] for _ in range(dados.nT + 2)] for _ in range(dados.nE)]
         self.Z = [[0 for _ in range(dados.nT)] for _ in range(dados.nE)]
         self.C = [[0.0 for _ in range(dados.nT + 2)] for _ in range(dados.nE)]
-        self.M = 0.0  
+        self.M = 0.0
+
+        self.solucao_veiculos = None  
