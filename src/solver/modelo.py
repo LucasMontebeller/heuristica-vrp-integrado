@@ -1,6 +1,7 @@
 import random
 from solver.dados import Dados
 from solver.solucao import Solucao
+from copy import deepcopy
 
 class Modelo:
     """Representa o modelo que rege o problema, incluido as respectivas restrições."""
@@ -124,7 +125,82 @@ class Modelo:
 
         return solucao
     
+    def gera_solucao_vizinha(self, solucao: Solucao) -> Solucao:
+        return self.__swap_veiculos(solucao)
+    
+    def __swap_veiculos(self, solucao_anterior: Solucao):
+        """Gera uma solução vizinha atráves de swap entre dois veiculos."""
+        solucao = deepcopy(solucao_anterior)
+        nova_solucao = Solucao(self.dados)
+
+        veiculos = list(self.dados.V)
+        lotes = list(self.dados.L)
+
+        # Escolhe aleatoriamente dois veiculos para o swap
+        k1, k2 = random.sample(veiculos, 2)
+
+        lotes_k1 = [l for l in lotes if solucao.S[k1 - 1][l - 1] == 1 and solucao.S[k2 - 1][l - 1] == 0]
+        lotes_k2 = [l for l in lotes if solucao.S[k2 - 1][l - 1] == 1 and solucao.S[k1 - 1][l - 1] == 0]
+
+        # Escolhe aleatoriamente dois lotes para o swap
+        l1 = random.choice(lotes_k1)
+        l2 = random.choice(lotes_k2)
+
+        inicio_atendimento_l1 = solucao.B[k1 - 1][l1 - 1]
+        inicio_atendimento_l2 = solucao.B[k2 - 1][l2 - 1]
+
+        # Alterações
+        self.__corte_espaco_temporal(k1, l1, l2, solucao)
+        self.__propaga_alteracoes_veiculos(k1, inicio_atendimento_l1, solucao)
+
+        self.__corte_espaco_temporal(k2, l2, l1, solucao)
+        self.__propaga_alteracoes_veiculos(k2, inicio_atendimento_l2, solucao)
+
+        # Recalcula empilhadeiras com base na nova ordem de H
+        self.add_restricoes_empilhadeiras(nova_solucao)
+
+        # Atualiza makespan
+        nova_solucao.M = max(nova_solucao.H)
+
+        return nova_solucao
         
+    def __corte_espaco_temporal(self, k, i_old, i_new, solucao: Solucao) -> None:
+        """Realiza o swap entre dois lotes."""
+        anterior = self.__get_lote_atendimento_anterior(k, i_old, solucao)
+        posterior = self.__get_lote_atendimento_posterior(k, i_old, solucao)
+
+        # Remove o lote antigo
+        solucao.X[k - 1][anterior][i_old] = 0
+        solucao.X[k - 1][i_old][posterior] = 0
+        solucao.S[k - 1][i_old - 1] = 0
+
+        # Limpa variáveis temporais do lote removido
+        solucao.W[k - 1][i_old - 1] = 0
+        solucao.B[k - 1][i_old - 1] = 0
+        solucao.D[k - 1][i_old - 1] = 0
+        solucao.H[i_old - 1] = 0
+
+        # Propor as novas conexões: (anterior, i_new) e (i_new, posterior) 
+        self.__rotear_veiculo(k, anterior, i_new, solucao)
+        self.__atualizar_variaveis_temporais(k, anterior, i_new, solucao)
+
+        self.__rotear_veiculo(k, i_new, posterior, solucao)
+        self.__atualizar_variaveis_temporais(k, i_new, posterior, solucao)
+
+    def __propaga_alteracoes_veiculos(self, k, inicio_atendimento_lote, solucao: Solucao) -> None:
+        """Propaga as alterações do Swap nas variáveis temporais e espaciais."""
+        lotes_atendimento_posterior = sorted([l for l in self.dados.L if solucao.S[k - 1][l - 1] == 1 and solucao.B[k - 1][l - 1] > inicio_atendimento_lote], key=lambda l: solucao.B[k - 1][l - 1])
+        for j in lotes_atendimento_posterior:
+            i = self.__get_lote_atendimento_anterior(k, j, solucao)
+            self.__rotear_veiculo(k, i, j, solucao)
+            self.__atualizar_variaveis_temporais(k, i, j, solucao)
+
+    def __get_lote_atendimento_anterior(self, k, j, solucao: Solucao) -> int:
+        return next(i for i in range(self.dados.nL + 1) if solucao.X[k - 1][i][j] == 1)
+    
+    def __get_lote_atendimento_posterior(self, k, i, solucao: Solucao) -> int:
+        return next(j for j in range(1, self.dados.nL + 2) if solucao.X[k - 1][i][j] == 1)
+    
     def __lotes_nao_atendidos_veiculos(self, solucao: Solucao) -> list:
         """Encontra uma lista de lotes que nenhum veículo atendeu ainda."""
         lotes_atendidos = set()

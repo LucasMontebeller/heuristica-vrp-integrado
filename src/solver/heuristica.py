@@ -17,7 +17,7 @@ class Heuristica():
         aceita_nova_solucao = lambda energia, temperatura: random.random() < math.exp(-energia / temperatura)
 
         while T > 0.1 and cont < max_exec:
-            nova_solucao = self.modelo.gera_solucao_aleatoria()
+            nova_solucao = self.modelo.gera_solucao_vizinha(solucao) # self.modelo.gera_solucao_aleatoria()
 
             delta_e = nova_solucao.M - solucao.M
 
