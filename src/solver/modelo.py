@@ -7,7 +7,24 @@ class Modelo:
     def __init__(self, dados: Dados):
         self.dados = dados
 
-    def add_restricoes_veiculos(self, solucao: Solucao) -> None:
+    def gera_solucao_aleatoria(self) -> Solucao:
+        """Gera uma solução aleatória para o problema."""
+
+        solucao = Solucao(self.dados)
+        self.__add_restricoes_veiculos(solucao)
+        self.__add_restricoes_empilhadeiras(solucao)
+
+        # Atualizar makespan
+        solucao.M = max(solucao.H) # - self.dados.TC. # Agora essa variável representa o instante de atendimento do ultimo lote (ajustar na dissertação).
+
+        return solucao
+    
+    def gera_solucao_vizinha(self, solucao: Solucao) -> Solucao:
+        """Gera uma solução vizinha para o problema."""
+
+        raise NotImplementedError('Função não implementada ainda!')
+
+    def __add_restricoes_veiculos(self, solucao: Solucao) -> None:
         """Adiciona as restrições dos veiculos, preenchendo as respectivas variáveis na solução."""
         lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
         # Gera arcos aleatórios para os veículos, respeitando a continuidade de fluxo
@@ -34,7 +51,7 @@ class Modelo:
         # Isso não gera nenhum impacto no resultado, apenas garante integridade
         self.__rotear_veiculos_volta_garagem(solucao)
 
-    def add_restricoes_empilhadeiras(self, solucao: Solucao) -> None:
+    def __add_restricoes_empilhadeiras(self, solucao: Solucao) -> None:
         """Adiciona as restrições relacionadas às empilhadeiras à solução."""
         # Ordena os lotes atendidos pelos veículos
         lotes_ordenados_tempo = sorted(range(len(solucao.H)), key=lambda i: solucao.H[i])
@@ -111,19 +128,6 @@ class Modelo:
                             solucao.B[k - 1][j] += solucao.W[k - 1][i]
                             solucao.D[k - 1][j] += solucao.W[k - 1][i]
                             solucao.H[j] = solucao.B[k - 1][j]
- 
-    def gera_solucao_aleatoria(self) -> Solucao:
-        """Gera uma solução aleatória para o problema."""
-
-        solucao = Solucao(self.dados)
-        self.add_restricoes_veiculos(solucao)
-        self.add_restricoes_empilhadeiras(solucao)
-
-        # Atualizar makespan
-        solucao.M = max(solucao.H) # - self.dados.TC. # Agora essa variável representa o instante de atendimento do ultimo lote (ajustar na dissertação).
-
-        return solucao
-    
         
     def __lotes_nao_atendidos_veiculos(self, solucao: Solucao) -> list:
         """Encontra uma lista de lotes que nenhum veículo atendeu ainda."""

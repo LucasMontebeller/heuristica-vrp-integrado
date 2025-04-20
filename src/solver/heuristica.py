@@ -1,23 +1,39 @@
 import math
 import random
 from solver.modelo import Modelo
+from solver.solucao import Solucao
 
 class Heuristica():
     """Classe criada para representar as heuristicas utilizadas para resolver o problema."""
     def __init__(self, modelo: Modelo):
         self.modelo = modelo
 
-    def simulated_annealing(self, T_inicial = 100, alpha = 0.995, max_exec = 500):
+    def random_search(self, max_exec = 100) -> tuple[Solucao, int, int]:
+        melhor_solucao = self.modelo.gera_solucao_aleatoria()
+        iteracoes = 0
+        iteracoes_convergencia = 0
+
+        while iteracoes < max_exec:
+            solucao = self.modelo.gera_solucao_aleatoria()
+            if solucao.M < melhor_solucao.M:
+                melhor_solucao = solucao
+                iteracoes_convergencia = iteracoes
+
+            iteracoes += 1
+
+        return melhor_solucao, iteracoes, iteracoes_convergencia
+
+    def simulated_annealing(self, T_inicial = 100, alpha = 0.995) -> tuple[Solucao, int]:
         T = T_inicial
-        solucao = self.modelo.gera_solucao_aleatoria() # solucao inicial
+        solucao = self.modelo.gera_solucao_aleatoria()
         melhor_solucao = solucao
-        cont = 0
+        iteracoes = 0
 
         # Através do fator de Boltzmann, aceita ou não a troca da solução
         aceita_nova_solucao = lambda energia, temperatura: random.random() < math.exp(-energia / temperatura)
 
-        while T > 0.1 and cont < max_exec:
-            nova_solucao = self.modelo.gera_solucao_aleatoria()  # talvez deva se relacionar com a anterior (vizinho)
+        while T > 0.1:
+            nova_solucao = self.modelo.gera_solucao_vizinha(solucao)
 
             delta_e = nova_solucao.M - solucao.M
 
@@ -34,6 +50,6 @@ class Heuristica():
                 melhor_solucao = solucao
 
             T*=alpha
-            cont += 1
+            iteracoes += 1
 
-        return melhor_solucao, cont
+        return melhor_solucao, iteracoes
