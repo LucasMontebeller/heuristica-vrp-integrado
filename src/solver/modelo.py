@@ -53,74 +53,84 @@ class Modelo:
 
     def __rotear_empilhadeiras(self, solucao: Solucao) -> None:
         """Sequencia as empilhadeiras para atender os veiculos, preenchendo as respectivas variáveis na solução."""
-        lotes_por_talhao = self.__get_agrupamento_talhao_lotes()            
-        talhoes_atendidos = {}
+        # Passo 1: Montar a lista de eventos
+        eventos = []
+        for lote in range(self.dados.nL):
+            for k in self.dados.V:
+                if solucao.S[k - 1][lote] == 1:  # Verifica se o veículo k atende o lote
+                    eventos.append((solucao.B[k - 1][lote], lote, k))  # (tempo_chegada_veiculo, lote, veiculo)
 
-        # TODO: Encapsular passos em funções
-        while len(talhoes_atendidos) != self.dados.nT:
-            # Passo 1: Escolher o próximo talhão a ser atendido
-            # Consiste naquele que possui o lote em que chegou o veiculo mais cedo
-            minimo_tempo_chegada = float('inf')
-            talhao_escolhido = None
-            for talhao, lotes in lotes_por_talhao.items():
-                if talhao not in talhoes_atendidos and lotes:
-                    # Encontra o tempo de chegada mais cedo para os lotes deste talhão
-                    tempo_chegada_mais_cedo_talhao = min(solucao.B[k - 1][i] for i in lotes for k in self.dados.V if solucao.S[k - 1][i] == 1)
+        # Passo 2: Ordenar os eventos pela chegada
+        eventos.sort()
 
-                    if tempo_chegada_mais_cedo_talhao < minimo_tempo_chegada:
-                        minimo_tempo_chegada = tempo_chegada_mais_cedo_talhao
-                        talhao_escolhido = talhao
+        # Estruturas auxiliares
+        empilhadeira_em_talhao = {}  # Armazena qual empilhadeira está em qual talhão e o tempo que estará livre
+        empilhadeiras_livres = [e for e in self.dados.E]  # Lista de empilhadeiras livres
+        lotes_standby = []  # Lotes que precisam de empilhadeira mas não tem disponível ainda
 
-            if talhao_escolhido is None:
-                raise AttributeError('Não foi encontrado um talhão valido!')
-            
-            # Passo 2: Ordenar os lotes a serem atendidos com base na chegada dos veiculos
-            sequencia_atendimento_lotes = sorted(lotes_por_talhao[talhao_escolhido], key=lambda i: min(solucao.B[k - 1][i] for k in self.dados.V if solucao.S[k - 1][i] == 1))
+        # Passo 3: Processar os eventos de acordo com a chegada dos veículos
+        for tempo_chegada_veiculo, lote, veiculo in eventos:
+            # NOVO: Verificar se o veiculo está bloqueado em outro atendimento pendente
+            if any(item[2] == [veiculo] for item in lotes_standby):
+                continue  # Pule este evento por agora (o veículo está preso aguardando outro lote)
 
-            # Passo 3: Iniciar o roteamento das empilhadeiras
-            e = self.__selecionar_empilhadeira_livre(solucao)
-            ultimo_talhao_atendido = self.__ultimo_tallhao_atendido_empilhadeira(e, solucao)
-            if ultimo_talhao_atendido is None: # primeiro atendimento
-                self.__rotear_empilhadeira(e, 0, talhao, solucao)
-                tempo_chegada_empilhadeira = minimo_tempo_chegada  # o tempo de chegada é o mesmo do primeiro veiculo atendido
-            else: # desloca a empilhadeira para um novo talhão
-                self.__rotear_empilhadeira(e, ultimo_talhao_atendido, talhao, solucao)
-                tempo_partida = talhoes_atendidos.get(e, 0)
-                tempo_chegada_empilhadeira = tempo_partida + self.dados.DE[ultimo_talhao_atendido][talhao] + self.dados.TC
+            talhao = self.__get_talhao_from_lote(lote)
 
-            tempo_inicio_atendimento = tempo_chegada_empilhadeira
-            self.__set_tempo_chegada_empilhadeira_talhao(e, talhao, tempo_inicio_atendimento, solucao)
+            # Passo 4: Verificar se tem empilhadeira disponível para o talhão
+            if talhao in empilhadeira_em_talhao:
+                # Tem empilhadeira disponível, o atendimento pode começar
+                empilhadeira, tempo_disponivel = empilhadeira_em_talhao[talhao]
+                tempo_inicio_atendimento = max(tempo_chegada_veiculo, tempo_disponivel)
 
-            # Passo 4: (Mais dificil) - Atualizar todas as variáveis temporais envolvidas
-            # O grande ponto de atenção é o veiculo ter chegado em outro talhão (lote) antes de estar aqui. 
-            # Neste caso não existe empilhadeira lá ainda, portanto o atraso deve ser propagado para ele, bem como atualizado a hora que ele chegou B[k-1][i-1]
-            for lote in sequencia_atendimento_lotes:
-                # Encontrar o veículo que atende o lote
-                for k in self.dados.V:
-                    if solucao.S[k - 1][lote] == 1:
-                        break
+                # Registrar o tempo de atendimento do veículo
+                solucao.W[veiculo - 1][lote] = max(0, tempo_inicio_atendimento - tempo_chegada_veiculo)  # Tempo de espera do veículo
+                solucao.D[veiculo - 1][lote] = tempo_chegada_veiculo + solucao.W[veiculo - 1][lote]
+                solucao.H[lote] = solucao.D[veiculo - 1][lote]  # Atualiza o tempo de atendimento do lote
+
+                # Atualizar o tempo de liberação da empilhadeira
+                empilhadeira_em_talhao[talhao] = (empilhadeira, tempo_inicio_atendimento + self.dados.TC)
+
+            else:
+                # Não tem empilhadeira no talhão, então vamos tentar alocar uma empilhadeira livre
+                if empilhadeiras_livres:
+                    empilhadeira = empilhadeiras_livres.pop(0)  # Pega a primeira empilhadeira livre
+                    tempo_chegada_empilhadeira = tempo_chegada_veiculo  # O tempo que a empilhadeira chega ao talhão
+
+                    # Registrar o tempo de chegada da empilhadeira ao talhão
+                    solucao.C[empilhadeira - 1][talhao] = tempo_chegada_empilhadeira
+
+                    # Registrar o tempo de atendimento
+                    solucao.W[veiculo - 1][lote] = max(0, tempo_chegada_empilhadeira - tempo_chegada_veiculo)
+                    solucao.D[veiculo - 1][lote] = tempo_chegada_veiculo + solucao.W[veiculo - 1][lote]
+                    solucao.H[lote] = solucao.D[veiculo - 1][lote]
+
+                    # Adicionar a empilhadeira ao talhão
+                    empilhadeira_em_talhao[talhao] = (empilhadeira, tempo_chegada_empilhadeira + self.dados.TC)
+
                 else:
-                    raise AttributeError('Não foi encontrado um veiculo que atende o lote!')
-                
-                tempo_chegada_veiculo = solucao.B[k - 1][lote]
-                # E se o veiculo chegou por exemplo em 7.8325 ? como sei que ele pode ser atendido nesse horário ? será que existia uma empilhadeira onde ele atendeu antes ?
-                
-                if (tempo_inicio_atendimento > tempo_chegada_veiculo):
-                # Propaga o atraso da empilhadeira para as variáveis do veículo
-                        atraso = tempo_finalizacao_empilhadeira - tempo_chegada_veiculo
-                        solucao.W[k - 1][i] = atraso
-                        solucao.D[k - 1][i] = tempo_finalizacao_empilhadeira
-                        # Propaga o atraso para os próximos lotes atendidos pelo mesmo veículo
-                        for proximo_lote_index in range(self.dados.nL):
-                            if solucao.S[k - 1][proximo_lote_index] == 1 and solucao.B[k - 1][proximo_lote_index] > tempo_chegada_veiculo:
-                                solucao.B[k - 1][proximo_lote_index] += atraso
-                                solucao.D[k - 1][proximo_lote_index] += atraso
-                                solucao.H[proximo_lote_index] = solucao.D[k - 1][proximo_lote_index] # Mantém H consistente
+                    # Não há empilhadeiras livres para deslocar, então coloca o lote em stand-by
+                    lotes_standby.append((tempo_chegada_veiculo, lote, veiculo))
 
-                tempo_finalizacao_empilhadeira = tempo_inicio_atendimento + self.dados.TC
-                tempo_inicio_atendimento = tempo_finalizacao_empilhadeira
+            # Passo 5: Após todos os eventos principais, alocar empilhadeiras para os lotes em stand-by
+            # Tentar alocar empilhadeira para lotes em stand-by
+            for tempo_chegada_standby, lote_standby, veiculo_standby in lotes_standby:
+                talhao_standby = self.__get_talhao_from_lote(lote_standby)
 
-            talhoes_atendidos[e] = tempo_inicio_atendimento
+                # Verificar se existe empilhadeira disponível para este talhão
+                if talhao_standby in empilhadeira_em_talhao:
+                    empilhadeira, tempo_disponivel = empilhadeira_em_talhao[talhao_standby]
+                    tempo_inicio_atendimento = max(tempo_chegada_standby, tempo_disponivel)
+
+                    # Registrar o tempo de atendimento
+                    solucao.H[lote_standby] = tempo_inicio_atendimento
+                    solucao.W[veiculo_standby - 1][lote_standby] = max(0, tempo_inicio_atendimento - tempo_chegada_standby)
+
+                    # Atualizar o tempo de liberação da empilhadeira
+                    solucao.C[empilhadeira - 1][talhao_standby] = tempo_inicio_atendimento + self.dados.TE[lote_standby]
+
+                    # Remover lote da fila de stand-by
+                    lotes_standby.remove((tempo_chegada_standby, lote_standby, veiculo_standby))
+                        
         
     def __lotes_nao_atendidos_veiculos(self, solucao: Solucao) -> list:
         """Encontra uma lista de lotes que nenhum veículo atendeu ainda."""
