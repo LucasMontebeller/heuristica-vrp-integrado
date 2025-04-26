@@ -11,8 +11,8 @@ class Modelo:
         """Gera uma solução aleatória para o problema."""
 
         solucao = Solucao(self.dados)
-        self.__add_restricoes_veiculos(solucao)
-        self.__add_restricoes_empilhadeiras(solucao)
+        self.__rotear_veiculos(solucao)
+        self.__rotear_empilhadeiras(solucao)
 
         # Atualizar makespan
         solucao.M = max(solucao.H) # - self.dados.TC. # Agora essa variável representa o instante de atendimento do ultimo lote (ajustar na dissertação).
@@ -24,10 +24,9 @@ class Modelo:
 
         raise NotImplementedError('Função não implementada ainda!')
 
-    def __add_restricoes_veiculos(self, solucao: Solucao) -> None:
-        """Adiciona as restrições dos veiculos, preenchendo as respectivas variáveis na solução."""
+    def __rotear_veiculos(self, solucao: Solucao) -> None:
+        """Gera arcos aleatórios para os veículos, preenchendo as respectivas variáveis na solução."""
         lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
-        # Gera arcos aleatórios para os veículos, respeitando a continuidade de fluxo
         while len(lotes_permitidos) != 0:
             k = self.__selecionar_veiculo_livre(solucao)            
 
@@ -37,13 +36,14 @@ class Modelo:
             else:
                 i = self.__ultimo_lote_atendido_veiculo(k, solucao)
                 ### Isso é necessário para fazer com que as empilhadeiras finalizem o atendimento dos lotes no talhão.
-                l = self.__selecionar_lotes_talhoes_pendentes(lotes_permitidos, solucao)
-                if len(l) == 0:
-                    l = lotes_permitidos
+                # l = self.__selecionar_lotes_talhoes_pendentes(lotes_permitidos, solucao)
+                # if len(l) == 0:
+                #     l = lotes_permitidos
+                l = lotes_permitidos
                 j = self.__get_proximo_lote(i, l, True)
 
             self.__rotear_veiculo(k, i, j, solucao)
-            self.__atualizar_variaveis_temporais(k, i, j, solucao)
+            self.__atualiza_tempo_chegada_veiculo_lote(k, i, j, solucao)
 
             lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
 
@@ -51,26 +51,76 @@ class Modelo:
         # Isso não gera nenhum impacto no resultado, apenas garante integridade
         self.__rotear_veiculos_volta_garagem(solucao)
 
-    def __add_restricoes_empilhadeiras(self, solucao: Solucao) -> None:
-        """Adiciona as restrições relacionadas às empilhadeiras à solução."""
-        lotes_por_talhao = self.__get_agrupamento_talhao_lotes()
-        
-        # Ordena os lotes atendidos pelos veículos
-        for talhao, i in lotes_por_talhao.items():
-            lotes_por_talhao[talhao] = sorted(i, key=lambda i: solucao.H[i])
-        
-        for b in lotes_por_talhao:
-            e = self.__selecionar_empilhadeira_livre(solucao)
-            for i in lotes_por_talhao[b]:
-                if self.__is_primeiro_atendimento_empilhadeira(e, solucao): 
-                    a = 0
-                    self.__rotear_empilhadeira(e, a, b, solucao)
-                    solucao.C[e - 1][talhao] = solucao.H[i]
+    def __rotear_empilhadeiras(self, solucao: Solucao) -> None:
+        """Sequencia as empilhadeiras para atender os veiculos, preenchendo as respectivas variáveis na solução."""
+        lotes_por_talhao = self.__get_agrupamento_talhao_lotes()            
+        talhoes_atendidos = {}
 
-                elif self.__ultimo_tallhao_atendido_empilhadeira(e, solucao) == b: # A empilhadeira está atendendo o talhão ainda
-                    pass
-                else: # precisará se deslocar para atender o respectivo talhão.
-                    pass
+        # TODO: Encapsular passos em funções
+        while len(talhoes_atendidos) != self.dados.nT:
+            # Passo 1: Escolher o próximo talhão a ser atendido
+            # Consiste naquele que possui o lote em que chegou o veiculo mais cedo
+            minimo_tempo_chegada = float('inf')
+            talhao_escolhido = None
+            for talhao, lotes in lotes_por_talhao.items():
+                if talhao not in talhoes_atendidos and lotes:
+                    # Encontra o tempo de chegada mais cedo para os lotes deste talhão
+                    tempo_chegada_mais_cedo_talhao = min(solucao.B[k - 1][i] for i in lotes for k in self.dados.V if solucao.S[k - 1][i] == 1)
+
+                    if tempo_chegada_mais_cedo_talhao < minimo_tempo_chegada:
+                        minimo_tempo_chegada = tempo_chegada_mais_cedo_talhao
+                        talhao_escolhido = talhao
+
+            if talhao_escolhido is None:
+                raise AttributeError('Não foi encontrado um talhão valido!')
+            
+            # Passo 2: Ordenar os lotes a serem atendidos com base na chegada dos veiculos
+            sequencia_atendimento_lotes = sorted(lotes_por_talhao[talhao_escolhido], key=lambda i: min(solucao.B[k - 1][i] for k in self.dados.V if solucao.S[k - 1][i] == 1))
+
+            # Passo 3: Iniciar o roteamento das empilhadeiras
+            e = self.__selecionar_empilhadeira_livre(solucao)
+            ultimo_talhao_atendido = self.__ultimo_tallhao_atendido_empilhadeira(e, solucao)
+            if ultimo_talhao_atendido is None: # primeiro atendimento
+                self.__rotear_empilhadeira(e, 0, talhao, solucao)
+                tempo_chegada_empilhadeira = minimo_tempo_chegada  # o tempo de chegada é o mesmo do primeiro veiculo atendido
+            else: # desloca a empilhadeira para um novo talhão
+                self.__rotear_empilhadeira(e, ultimo_talhao_atendido, talhao, solucao)
+                tempo_partida = talhoes_atendidos.get(e, 0)
+                tempo_chegada_empilhadeira = tempo_partida + self.dados.DE[ultimo_talhao_atendido][talhao] + self.dados.TC
+
+            tempo_inicio_atendimento = tempo_chegada_empilhadeira
+            self.__set_tempo_chegada_empilhadeira_talhao(e, talhao, tempo_inicio_atendimento, solucao)
+
+            # Passo 4: (Mais dificil) - Atualizar todas as variáveis temporais envolvidas
+            # O grande ponto de atenção é o veiculo ter chegado em outro talhão (lote) antes de estar aqui. 
+            # Neste caso não existe empilhadeira lá ainda, portanto o atraso deve ser propagado para ele, bem como atualizado a hora que ele chegou B[k-1][i-1]
+            for lote in sequencia_atendimento_lotes:
+                # Encontrar o veículo que atende o lote
+                for k in self.dados.V:
+                    if solucao.S[k - 1][lote] == 1:
+                        break
+                else:
+                    raise AttributeError('Não foi encontrado um veiculo que atende o lote!')
+                
+                tempo_chegada_veiculo = solucao.B[k - 1][lote]
+                # E se o veiculo chegou por exemplo em 7.8325 ? como sei que ele pode ser atendido nesse horário ? será que existia uma empilhadeira onde ele atendeu antes ?
+                
+                if (tempo_inicio_atendimento > tempo_chegada_veiculo):
+                # Propaga o atraso da empilhadeira para as variáveis do veículo
+                        atraso = tempo_finalizacao_empilhadeira - tempo_chegada_veiculo
+                        solucao.W[k - 1][i] = atraso
+                        solucao.D[k - 1][i] = tempo_finalizacao_empilhadeira
+                        # Propaga o atraso para os próximos lotes atendidos pelo mesmo veículo
+                        for proximo_lote_index in range(self.dados.nL):
+                            if solucao.S[k - 1][proximo_lote_index] == 1 and solucao.B[k - 1][proximo_lote_index] > tempo_chegada_veiculo:
+                                solucao.B[k - 1][proximo_lote_index] += atraso
+                                solucao.D[k - 1][proximo_lote_index] += atraso
+                                solucao.H[proximo_lote_index] = solucao.D[k - 1][proximo_lote_index] # Mantém H consistente
+
+                tempo_finalizacao_empilhadeira = tempo_inicio_atendimento + self.dados.TC
+                tempo_inicio_atendimento = tempo_finalizacao_empilhadeira
+
+            talhoes_atendidos[e] = tempo_inicio_atendimento
         
     def __lotes_nao_atendidos_veiculos(self, solucao: Solucao) -> list:
         """Encontra uma lista de lotes que nenhum veículo atendeu ainda."""
@@ -107,15 +157,15 @@ class Modelo:
 
     def __selecionar_veiculo_livre(self, solucao: Solucao) -> int:
         """Seleciona um veículo que não atendeu nenhum lote ainda ou o que finalizou primeiro."""
-        for k in self.dados.V:
-            if self.__is_primeiro_atendimento(k, solucao):
-                return k
-
+        veiculos_nao_atenderam = [k for k in self.dados.V if self.__is_primeiro_atendimento(k, solucao)]
+        if veiculos_nao_atenderam:
+            return random.choice(veiculos_nao_atenderam)
+        
         return min(
             self.dados.V,
-            key=lambda v: max(
-                solucao.H[i] for i in range(self.dados.nL)
-                if solucao.S[v - 1][i] == 1
+            key=lambda k: max(
+                solucao.B[k - 1][i - 1] for i in range(self.dados.nL)
+                if solucao.S[k - 1][i] == 1
             )
         )
     
@@ -183,8 +233,20 @@ class Modelo:
 
         # Atualiza demais variáveis temporais
         solucao.B[k - 1][j - 1] = tempo_minimo_chegada_proximo_talhao # + solucao.W[k - 1][i - 1] # + self.dados.TC
-        solucao.D[k - 1][j - 1] = solucao.B[k - 1][j - 1] + solucao.W[k - 1][j - 1]
-        solucao.H[j - 1] = solucao.D[k - 1][j - 1]
+        # solucao.D[k - 1][j - 1] = solucao.B[k - 1][j - 1] + solucao.W[k - 1][j - 1]
+        # solucao.H[j - 1] = solucao.D[k - 1][j - 1]
+
+    def __atualiza_tempo_chegada_veiculo_lote(self, k, i, j, solucao: Solucao) -> None:
+        """Preenche a variável B[k][j]"""
+        is_garagem = i == 0
+
+        if is_garagem:
+            tempo_minimo_chegada_proximo_lote = self.dados.T_ida[j - 1]
+        else:
+            tempo_minimo_finaliza_atendimento_ultimo_lote = solucao.B[k - 1][i - 1] + self.dados.TC
+            tempo_minimo_chegada_proximo_lote = tempo_minimo_finaliza_atendimento_ultimo_lote + self.dados.T_volta[i - 1] + self.dados.T_ida[j - 1]
+
+        solucao.B[k - 1][j - 1] = tempo_minimo_chegada_proximo_lote
 
     def __rotear_veiculos_volta_garagem(self, solucao: Solucao) -> None:
         """Preenche a variável X[k][0][i], representando a volta do veiculo para garagem."""
@@ -203,18 +265,16 @@ class Modelo:
         return lotes_por_talhao
     
     def __selecionar_empilhadeira_livre(self, solucao: Solucao) -> int:
-        """Seleciona uma empilhadeira que não atendeu nenhum talhão ainda ou o que finalizou primeiro."""
-        for e in self.dados.E:
-            if self.__ultimo_tallhao_atendido_empilhadeira(e, solucao) is None:
-                return e
+        """Seleciona uma empilhadeira que não atendeu nenhum talhão ainda ou a que finalizou primeiro."""
+        empilhadeiras_nao_atenderam = [e for e in self.dados.E if self.__ultimo_tallhao_atendido_empilhadeira(e, solucao) is None]
+        if empilhadeiras_nao_atenderam:
+            return random.choice(empilhadeiras_nao_atenderam)
 
+        # Seleciona a empilhadeira que finalizou o atendimento no seu último talhão mais cedo
         return min(
-                self.dados.E,
-                key=lambda e: max(
-                    solucao.H[i] for i in range(self.dados.nL)
-                    if solucao.Z[e - 1][self.__get_talhao_from_lote(i) - 1] == 1  # Apenas lotes atendidos pela empilhadeira
-                )
-            )
+            self.dados.E,
+            key=lambda e: solucao.C[e - 1][self.__ultimo_tallhao_atendido_empilhadeira(e, solucao)] if self.__ultimo_tallhao_atendido_empilhadeira(e, solucao) is not None else 0
+        )
 
     def __is_primeiro_atendimento_empilhadeira(self, e, solucao: Solucao) -> bool:
         """Verifica se a empilhadeira ainda não atendeu nenhum lote."""
@@ -224,3 +284,7 @@ class Modelo:
         """Preenche as variáveis Y[e][a][b] e Z[e][b] com os respectivos indices."""
         solucao.Y[e - 1][a][b] = 1
         solucao.Z[e - 1][b - 1] = 1
+
+    def __set_tempo_chegada_empilhadeira_talhao(self, e, talhao, tempo, solucao: Solucao) -> None:
+        """Preenche a variável C[e][b], representando o tempo de chegada da empilhadeira no talhao."""
+        solucao.C[e - 1][talhao] = tempo
