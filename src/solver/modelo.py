@@ -12,7 +12,7 @@ class Modelo:
 
         solucao = Solucao(self.dados)
         self.__rotear_veiculos(solucao)
-        self.__rotear_empilhadeiras(solucao)
+        # self.__rotear_empilhadeiras(solucao)
 
         # Atualizar makespan
         solucao.M = max(solucao.H) # - self.dados.TC. # Agora essa variável representa o instante de atendimento do ultimo lote (ajustar na dissertação).
@@ -26,26 +26,56 @@ class Modelo:
 
     def __rotear_veiculos(self, solucao: Solucao) -> None:
         """Gera arcos aleatórios para os veículos, preenchendo as respectivas variáveis na solução."""
-        lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
-        while len(lotes_permitidos) != 0:
-            k = self.__selecionar_veiculo_livre(solucao)            
+        lotes_nao_atendidos = self.__lotes_nao_atendidos_veiculos(solucao)
+        while len(lotes_nao_atendidos) != 0:
+            k = self.__selecionar_veiculo_livre(solucao)
 
-            if self.__is_primeiro_atendimento(k, solucao):
-                i = 0                                                          # Os veiculos devem partir da garagem
-                j = self.__get_proximo_lote(0, lotes_permitidos, True)         # Primeiro lote a ser atendido
+            ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(k, solucao) or 0    
+
+            proximo_lote = self.__get_proximo_lote(0, lotes_nao_atendidos, True)
+            proximo_talhao = self.__get_talhao_from_lote(proximo_lote - 1)
+
+            # É possivel o próximo lote ser atendido?
+
+            # 1) Existe alguma empilhadeira neste talhão?
+            e = next((e for e in self.dados.E if solucao.C[e - 1][proximo_talhao] != 0), None)
+            if e is not None:
+                empilhadeira_inicio_atendimento_ultimo_lote = max(solucao.H[i -1] for i in self.dados.L if self.__get_talhao_from_lote(i - 1) == proximo_talhao)
+                empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
+
+            # 2) Caso contrário, deve existir alguma empilhadeira livre capaz de ir até seu respectivo talhão.
             else:
-                i = self.__ultimo_lote_atendido_veiculo(k, solucao)
-                ### Isso é necessário para fazer com que as empilhadeiras finalizem o atendimento dos lotes no talhão.
-                # l = self.__selecionar_lotes_talhoes_pendentes(lotes_permitidos, solucao)
-                # if len(l) == 0:
-                #     l = lotes_permitidos
-                l = lotes_permitidos
-                j = self.__get_proximo_lote(i, l, True)
+                e = self.__selecionar_empilhadeira_livre(solucao)
+                if self.__empilhadeira_apta_deslocamento_talhao(e, solucao):          
+                    ultimo_talhao = self.__ultimo_tallhao_atendido_empilhadeira(e, solucao) or 0               
+                    empilhadeira_inicio_atendimento_ultimo_lote = max(solucao.H[i -1] for i in self.dados.L if self.__get_talhao_from_lote(i - 1) == ultimo_talhao) if ultimo_lote_veiculo != 0 else self.dados.T_ida[proximo_lote - 1]
+                    tempo_chegada_proximo_talhao = empilhadeira_inicio_atendimento_ultimo_lote
+                    if ultimo_talhao != 0:
+                        tempo_chegada_proximo_talhao += self.dados.TC + self.dados.DE[ultimo_talhao][proximo_talhao]
 
-            self.__rotear_veiculo(k, i, j, solucao)
-            self.__atualiza_tempo_chegada_veiculo_lote(k, i, j, solucao)
+                    empilhadeira_inicio_atendimento_proximo_lote = tempo_chegada_proximo_talhao
+                    self.__rotear_empilhadeira(e, ultimo_talhao, proximo_talhao, solucao)
+                    self.__set_tempo_chegada_empilhadeira_talhao(e, proximo_talhao, tempo_chegada_proximo_talhao, solucao)
+                else:
+                    # 3) Senão, é impossivel fazer o roteamento. É necessário escolher outro conjunto de dados (verificar possibilidade).
+                    continue
+            
+            # Veiculos
+            self.__rotear_veiculo(k, ultimo_lote_veiculo, proximo_lote, solucao)
 
-            lotes_permitidos = self.__lotes_nao_atendidos_veiculos(solucao)
+            # Atualizar variáveis temporais do veiculo
+            if ultimo_lote_veiculo == 0: # garagem
+                tempo_minimo_chegada_proximo_lote = self.dados.T_ida[proximo_lote - 1]
+            else:
+                veiculo_tempo_inicio_atendimento_ultimo_lote = empilhadeira_inicio_atendimento_ultimo_lote 
+                tempo_minimo_chegada_proximo_lote = veiculo_tempo_inicio_atendimento_ultimo_lote + self.dados.TC + self.dados.T_volta[ultimo_lote_veiculo - 1] + self.dados.T_ida[proximo_lote - 1]
+
+            solucao.B[k - 1][proximo_lote - 1] = tempo_minimo_chegada_proximo_lote
+            solucao.W[k - 1][proximo_lote - 1] = max(0, empilhadeira_inicio_atendimento_proximo_lote - tempo_minimo_chegada_proximo_lote)  # Tempo de espera do veículo
+            solucao.D[k - 1][proximo_lote - 1] = tempo_minimo_chegada_proximo_lote + solucao.W[k - 1][proximo_lote - 1]
+            solucao.H[proximo_lote - 1] = solucao.D[k - 1][proximo_lote - 1]
+
+            lotes_nao_atendidos.remove(proximo_lote)
 
         # Os veiculos devem terminar na garagem
         # Isso não gera nenhum impacto no resultado, apenas garante integridade
@@ -174,7 +204,7 @@ class Modelo:
         return min(
             self.dados.V,
             key=lambda k: max(
-                solucao.B[k - 1][i - 1] for i in range(self.dados.nL)
+                solucao.D[k - 1][i - 1] for i in range(self.dados.nL)
                 if solucao.S[k - 1][i] == 1
             )
         )
@@ -298,3 +328,12 @@ class Modelo:
     def __set_tempo_chegada_empilhadeira_talhao(self, e, talhao, tempo, solucao: Solucao) -> None:
         """Preenche a variável C[e][b], representando o tempo de chegada da empilhadeira no talhao."""
         solucao.C[e - 1][talhao] = tempo
+
+    def __todos_lotes_atendidos(self, e, solucao) -> bool:
+        """Verifica se a empilhadeira 'e' atendeu todos os lotes do seu ultimo talhão."""
+        ultimo_talhao = self.__ultimo_tallhao_atendido_empilhadeira(e, solucao)
+        return ultimo_talhao not in self.__selecionar_talhoes_iniciados_nao_finalizados(solucao)
+
+    def __empilhadeira_apta_deslocamento_talhao(self, e, solucao) -> bool:
+        """Verifica se a empilhadeira 'e' pode se deslocar para outro talhão."""
+        return self.__is_primeiro_atendimento_empilhadeira(e, solucao) or self.__todos_lotes_atendidos(e, solucao)
