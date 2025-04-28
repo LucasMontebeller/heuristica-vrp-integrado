@@ -46,8 +46,8 @@ class Modelo:
             # 2) Caso contrário, deve existir alguma empilhadeira livre capaz de ir até seu respectivo talhão.
             else:
                 e = self.__selecionar_empilhadeira_livre(solucao)
-                if self.__empilhadeira_apta_deslocamento_talhao(e, solucao):          
-                    ultimo_talhao = self.__ultimo_tallhao_atendido_empilhadeira(e, solucao) or 0               
+                if e is not None and self.__empilhadeira_apta_deslocamento_talhao(e, solucao):          
+                    ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, solucao) or 0               
                     empilhadeira_inicio_atendimento_ultimo_lote = max(solucao.H[i -1] for i in self.dados.L if self.__get_talhao_from_lote(i - 1) == ultimo_talhao) if ultimo_lote_veiculo != 0 else self.dados.T_ida[proximo_lote - 1]
                     tempo_chegada_proximo_talhao = empilhadeira_inicio_atendimento_ultimo_lote
                     if ultimo_talhao != 0:
@@ -176,7 +176,7 @@ class Modelo:
         """Encontra o ultimo lote atendido pelo veiculo 'k'"""
         return max((lote for lote in self.dados.L if solucao.S[k - 1][lote - 1] == 1), key=lambda lote: solucao.B[k - 1][lote - 1], default=None)
 
-    def __ultimo_tallhao_atendido_empilhadeira(self, e, solucao: Solucao) -> int:
+    def __ultimo_talhao_atendido_empilhadeira(self, e, solucao: Solucao) -> int:
         """Encontra o ultimo talhão atendido pela empilhadeira 'e'"""
         return max((talhao for talhao in self.dados.T if solucao.Z[e - 1][talhao - 1] == 1), key=lambda talhao: solucao.C[e - 1][talhao], default=None)
     
@@ -305,20 +305,32 @@ class Modelo:
         return lotes_por_talhao
     
     def __selecionar_empilhadeira_livre(self, solucao: Solucao) -> int:
-        """Seleciona uma empilhadeira que não atendeu nenhum talhão ainda ou a que finalizou primeiro."""
-        empilhadeiras_nao_atenderam = [e for e in self.dados.E if self.__ultimo_tallhao_atendido_empilhadeira(e, solucao) is None]
+        """Seleciona uma empilhadeira que não atendeu nenhum talhão ainda ou alguma que já finalizou."""
+        empilhadeiras_nao_atenderam = [e for e in self.dados.E if self.__ultimo_talhao_atendido_empilhadeira(e, solucao) is None]
         if empilhadeiras_nao_atenderam:
             return random.choice(empilhadeiras_nao_atenderam)
 
+        empilhadeiras_candidatas = [e for e in self.dados.E if self.__todos_lotes_atendidos(e, solucao)]
+        if len(empilhadeiras_candidatas) == 0:
+            return None
+        
+        return random.choice(empilhadeiras_candidatas)
+
         # Seleciona a empilhadeira que finalizou o atendimento no seu último talhão mais cedo
-        return min(
-            self.dados.E,
-            key=lambda e: solucao.C[e - 1][self.__ultimo_tallhao_atendido_empilhadeira(e, solucao)] if self.__ultimo_tallhao_atendido_empilhadeira(e, solucao) is not None else 0
-        )
+        # empilhadeira = None
+        # horario_inicio_atendimento = float('inf')
+        # for e in empilhadeiras_candidatas:
+        #     ultimo_talhao_atendido = self.__ultimo_talhao_atendido_empilhadeira(e, solucao)
+        #     ultimo_horario_inicio_atendimento = max(solucao.H[i -1] for i in self.dados.L if self.__get_talhao_from_lote(i - 1) == ultimo_talhao_atendido)
+        #     if ultimo_horario_inicio_atendimento < horario_inicio_atendimento:
+        #         horario_inicio_atendimento = ultimo_horario_inicio_atendimento
+        #         empilhadeira = e
+
+        # return empilhadeira
 
     def __is_primeiro_atendimento_empilhadeira(self, e, solucao: Solucao) -> bool:
         """Verifica se a empilhadeira ainda não atendeu nenhum lote."""
-        return self.__ultimo_tallhao_atendido_empilhadeira(e, solucao) is None  
+        return self.__ultimo_talhao_atendido_empilhadeira(e, solucao) is None  
     
     def __rotear_empilhadeira(self, e, a, b, solucao: Solucao) -> None:
         """Preenche as variáveis Y[e][a][b] e Z[e][b] com os respectivos indices."""
@@ -331,7 +343,7 @@ class Modelo:
 
     def __todos_lotes_atendidos(self, e, solucao) -> bool:
         """Verifica se a empilhadeira 'e' atendeu todos os lotes do seu ultimo talhão."""
-        ultimo_talhao = self.__ultimo_tallhao_atendido_empilhadeira(e, solucao)
+        ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, solucao)
         return ultimo_talhao not in self.__selecionar_talhoes_iniciados_nao_finalizados(solucao)
 
     def __empilhadeira_apta_deslocamento_talhao(self, e, solucao) -> bool:
