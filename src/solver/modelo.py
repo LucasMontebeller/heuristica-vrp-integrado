@@ -30,7 +30,9 @@ class Modelo:
         while len(lotes_nao_atendidos) != 0:
             k = self.__selecionar_veiculo_livre(solucao)
 
-            ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(k, solucao) or 0    
+            ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(k, solucao) or 0
+            if ultimo_lote_veiculo != 0:
+                veiculo_tempo_inicio_atendimento_ultimo_lote = max(solucao.H[i -1] for i in self.dados.L if i == ultimo_lote_veiculo)  
 
             proximo_lote = self.__get_proximo_lote(0, lotes_nao_atendidos, True)
             proximo_talhao = self.__get_talhao_from_lote(proximo_lote - 1)
@@ -47,11 +49,16 @@ class Modelo:
             else:
                 e = self.__selecionar_empilhadeira_livre(solucao)
                 if e is not None and self.__empilhadeira_apta_deslocamento_talhao(e, solucao):          
-                    ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, solucao) or 0               
-                    empilhadeira_inicio_atendimento_ultimo_lote = max(solucao.H[i -1] for i in self.dados.L if self.__get_talhao_from_lote(i - 1) == ultimo_talhao) if ultimo_lote_veiculo != 0 else self.dados.T_ida[proximo_lote - 1]
-                    tempo_chegada_proximo_talhao = empilhadeira_inicio_atendimento_ultimo_lote
-                    if ultimo_talhao != 0:
-                        tempo_chegada_proximo_talhao += self.dados.TC + self.dados.DE[ultimo_talhao][proximo_talhao]
+                    ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, solucao) or 0    
+                    if ultimo_talhao == 0: # primeiro atendimento da empilhadeira
+                        empilhadeira_inicio_atendimento_ultimo_lote = 0
+                        if ultimo_lote_veiculo == 0: # primeiro atendimento do veiculo
+                            tempo_chegada_proximo_talhao = self.dados.T_ida[proximo_lote - 1]
+                        else:
+                            tempo_chegada_proximo_talhao = veiculo_tempo_inicio_atendimento_ultimo_lote + self.dados.TC + self.dados.T_volta[ultimo_lote_veiculo - 1] + self.dados.T_ida[proximo_lote - 1]
+                    else:
+                        empilhadeira_inicio_atendimento_ultimo_lote = max(solucao.H[i -1] for i in self.dados.L if self.__get_talhao_from_lote(i - 1) == ultimo_talhao)
+                        tempo_chegada_proximo_talhao = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC + self.dados.DE[ultimo_talhao][proximo_talhao]
 
                     empilhadeira_inicio_atendimento_proximo_lote = tempo_chegada_proximo_talhao
                     self.__rotear_empilhadeira(e, ultimo_talhao, proximo_talhao, solucao)
@@ -67,7 +74,6 @@ class Modelo:
             if ultimo_lote_veiculo == 0: # garagem
                 tempo_minimo_chegada_proximo_lote = self.dados.T_ida[proximo_lote - 1]
             else:
-                veiculo_tempo_inicio_atendimento_ultimo_lote = empilhadeira_inicio_atendimento_ultimo_lote 
                 tempo_minimo_chegada_proximo_lote = veiculo_tempo_inicio_atendimento_ultimo_lote + self.dados.TC + self.dados.T_volta[ultimo_lote_veiculo - 1] + self.dados.T_ida[proximo_lote - 1]
 
             solucao.B[k - 1][proximo_lote - 1] = tempo_minimo_chegada_proximo_lote
@@ -197,17 +203,19 @@ class Modelo:
 
     def __selecionar_veiculo_livre(self, solucao: Solucao) -> int:
         """Seleciona um veículo que não atendeu nenhum lote ainda ou o que finalizou primeiro."""
-        veiculos_nao_atenderam = [k for k in self.dados.V if self.__is_primeiro_atendimento(k, solucao)]
-        if veiculos_nao_atenderam:
-            return random.choice(veiculos_nao_atenderam)
+        return random.choice([k for k in self.dados.V])
+        # Isso de certo modo é uma heuristica já
+        # veiculos_nao_atenderam = [k for k in self.dados.V if self.__is_primeiro_atendimento(k, solucao)]
+        # if veiculos_nao_atenderam:
+        #     return random.choice(veiculos_nao_atenderam)
         
-        return min(
-            self.dados.V,
-            key=lambda k: max(
-                solucao.D[k - 1][i - 1] for i in range(self.dados.nL)
-                if solucao.S[k - 1][i] == 1
-            )
-        )
+        # return min(
+        #     self.dados.V,
+        #     key=lambda k: max(
+        #         solucao.D[k - 1][i - 1] for i in range(self.dados.nL)
+        #         if solucao.S[k - 1][i] == 1
+        #     )
+        # )
     
     def __is_primeiro_atendimento(self, k, solucao: Solucao) -> bool:
         """Verifica se o veículo ainda não atendeu nenhum lote."""
@@ -291,7 +299,7 @@ class Modelo:
     def __rotear_veiculos_volta_garagem(self, solucao: Solucao) -> None:
         """Preenche a variável X[k][0][i], representando a volta do veiculo para garagem."""
         for k in self.dados.V:
-            i = self.__ultimo_lote_atendido_veiculo(k, solucao)
+            i = self.__ultimo_lote_atendido_veiculo(k, solucao) or 0
             solucao.X[k - 1][i][self.dados.nL + 1] = 1
 
     def __get_agrupamento_talhao_lotes(self) -> dict[int, list]:
