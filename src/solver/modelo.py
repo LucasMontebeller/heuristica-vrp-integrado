@@ -27,7 +27,7 @@ class Modelo:
 
             else:
                 e = self.__selecionar_empilhadeira_livre(solucao)
-                if e is not None and self.__empilhadeira_apta_deslocamento_talhao(e, solucao):          
+                if self.__empilhadeira_apta_deslocamento_talhao(e, solucao):          
                     ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, solucao) or 0    
                     tempo_chegada_proximo_talhao = self.__get_tempo_chegada_proximo_talhao_empilhadeira(ultimo_talhao, proximo_talhao, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, solucao)
 
@@ -114,7 +114,7 @@ class Modelo:
     
     def __empilhadeira_apta_deslocamento_talhao(self, e: int, solucao: Solucao) -> bool:
         """Verifica se a empilhadeira 'e' pode se deslocar para outro talhão."""
-        return self.__is_primeiro_atendimento_empilhadeira(e, solucao) or self.__todos_lotes_atendidos(e, solucao)
+        return e is not None and (self.__is_primeiro_atendimento_empilhadeira(e, solucao) or self.__todos_lotes_atendidos(e, solucao))
     
     def __is_primeiro_atendimento_empilhadeira(self, e: int, solucao: Solucao) -> bool:
         """Verifica se a empilhadeira ainda não atendeu nenhum lote."""
