@@ -45,8 +45,7 @@ class Modelo:
         # Isso não gera nenhum impacto no resultado, apenas garante integridade
         self.__rotear_veiculos_volta_garagem(solucao)
 
-        # Atualizar makespan
-        solucao.M = max(solucao.H)
+        self.__atualizar_makespan(solucao)
 
         return solucao
     
@@ -193,3 +192,7 @@ class Modelo:
         for k in self.dados.V:
             i = self.__ultimo_lote_atendido_veiculo(k, solucao) or 0
             solucao.X[k - 1][i][self.dados.nL + 1] = 1
+
+    def __atualizar_makespan(self, solucao: Solucao) -> None:
+        """Atualiza a variável makespan 'M'."""
+        solucao.M = max(solucao.H)
