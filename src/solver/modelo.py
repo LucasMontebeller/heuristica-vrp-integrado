@@ -24,17 +24,14 @@ class Modelo:
             if e is not None:
                 empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, solucao)
                 empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
-
             else:
                 e = self.__selecionar_empilhadeira_livre(solucao)
                 if self.__empilhadeira_apta_deslocamento_talhao(e, solucao):          
                     ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, solucao) or 0    
-                    tempo_chegada_proximo_talhao = self.__get_tempo_chegada_proximo_talhao_empilhadeira(ultimo_talhao, proximo_talhao, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, solucao)
-
-                    empilhadeira_inicio_atendimento_proximo_lote = tempo_chegada_proximo_talhao
+                    empilhadeira_inicio_atendimento_proximo_lote = self.__get_tempo_chegada_proximo_talhao_empilhadeira(ultimo_talhao, proximo_talhao, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, solucao)
 
                     self.__rotear_empilhadeira(e, ultimo_talhao, proximo_talhao, solucao)
-                    self.__set_tempo_chegada_empilhadeira_talhao(e, proximo_talhao, tempo_chegada_proximo_talhao, solucao)
+                    self.__set_tempo_chegada_empilhadeira_talhao(e, proximo_talhao, empilhadeira_inicio_atendimento_proximo_lote, solucao)
                 else:
                     # Impossivel fazer o roteamento. É necessário fazer outra escolha de veículo e lote.
                     continue
