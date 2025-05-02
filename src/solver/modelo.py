@@ -1,5 +1,4 @@
 import random
-from math import factorial
 from copy import deepcopy
 from solver.dados import Dados
 from solver.solucao import Solucao
@@ -69,7 +68,7 @@ class Modelo:
 
         # Loop força encontrar uma solução vizinha
         lotes_nao_atendidos = [0]
-        maximo_swap = sum(factorial(len(k)) for k in sequencia_atendimento_veiculo_original.values())
+        maximo_swap = self.__get_numero_maximo_swap(sequencia_atendimento_veiculo_original)
         cont_swap = 0
         while lotes_nao_atendidos and cont_swap < maximo_swap:
             sol_vizinha = Solucao(self.dados)
@@ -278,3 +277,16 @@ class Modelo:
     def __atualizar_makespan(self, solucao: Solucao) -> None:
         """Atualiza a variável makespan 'M'."""
         solucao.M = max(solucao.H)
+
+    def __get_numero_maximo_swap(self, sequencia_atendimento_veiculo_original: dict) -> int:
+        """Retorna o número máximo de swaps possíveis."""
+        maximo_swap = 0
+        for k_old in self.dados.V:
+            n_old = len(sequencia_atendimento_veiculo_original[k_old])
+            for k_new in self.dados.V:
+                if k_old == k_new:
+                    continue
+                n_new = len(sequencia_atendimento_veiculo_original[k_new])
+                maximo_swap += n_old * (n_new + 1)
+
+        return maximo_swap
