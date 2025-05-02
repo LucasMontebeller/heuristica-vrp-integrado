@@ -1,4 +1,5 @@
 import random
+from math import factorial
 from copy import deepcopy
 from solver.dados import Dados
 from solver.solucao import Solucao
@@ -52,63 +53,81 @@ class Modelo:
     
     def gera_solucao_vizinha(self, solucao: Solucao) -> Solucao:
         """Gera uma solução vizinha para o problema."""
-        sol_vizinha = Solucao(self.dados) # Não é feito deepcopy pois todas as variáveis serão recalculadas.
-
-        # 1) Passo 1: Pegar o lote de um veiculo e colocar em outro, de forma aleatória.
-        sequencia_atendimento_empilhadeira = dict()
+        sequencia_atendimento_empilhadeira_original = dict()
         for e in self.dados.E:
-            sequencia_atendimento_empilhadeira[e] = sorted((talhao for talhao in self.dados.T if solucao.Z[e - 1][talhao - 1] == 1), key=lambda talhao: solucao.C[e - 1][talhao])
+            sequencia_atendimento_empilhadeira_original[e] = sorted((talhao for talhao in self.dados.T if solucao.Z[e - 1][talhao - 1] == 1), key=lambda talhao: solucao.C[e - 1][talhao])
 
-        sequencia_atendimento_veiculo = dict()
+        sequencia_atendimento_veiculo_original = dict()
         for k in self.dados.V:
-            sequencia_atendimento_veiculo[k] = sorted(
+            sequencia_atendimento_veiculo_original[k] = sorted(
             ((lote, solucao.H[lote - 1]) for lote in self.dados.L if solucao.S[k - 1][lote - 1] == 1),
             key=lambda item: solucao.D[k - 1][item[0] - 1]
-            )
-        
-        k_old = random.choice(self.dados.V)
-        K_new = random.choice([k for k in self.dados.V if k != k_old])
-        lote_swap = random.choice(sequencia_atendimento_veiculo[k_old])
+        )
 
-        sequencia_atendimento_veiculo[k_old].remove(lote_swap)
-        sequencia_atendimento_veiculo[K_new].append(lote_swap) # talvez precise verificar onde colocar o lote na lista de atendimento do veiculo novo.
+        if len(sequencia_atendimento_veiculo_original) < 2:
+            raise ValueError("Não é possível gerar uma solução vizinha com menos de dois veículos.")
 
-        # 2) Passo 2: Chamar um metodo similar a gera_solucao_aleatoria para recalcular a solução. 
-        # A diferença é que agora a sequência de atendimento já está definida. 
-        # Caso não seja possivel, alterar a posição do novo lote a ser atendido e rodar novamente.
-        sequencia_atendimento_veiculo_controle = deepcopy(sequencia_atendimento_veiculo)
-        lotes_nao_atendidos = self.__get_lotes_nao_atendidos(sol_vizinha)
-        while lotes_nao_atendidos:
-            k = min((k for k in sequencia_atendimento_veiculo.keys()), key=lambda k: sequencia_atendimento_veiculo[k][0][1] if sequencia_atendimento_veiculo[k] else float('inf'))
-            ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(k, sol_vizinha)
-            tempo_inicio_atendimento_ultimo_lote_veiculo = self.__get_tempo_inicio_atendimento_lote_veiculo(ultimo_lote_veiculo, k, sol_vizinha)
+        # Loop força encontrar uma solução vizinha
+        lotes_nao_atendidos = [0]
+        maximo_swap = sum(factorial(len(k)) for k in sequencia_atendimento_veiculo_original.values())
+        cont_swap = 0
+        while lotes_nao_atendidos and cont_swap < maximo_swap:
+            sol_vizinha = Solucao(self.dados)
+            sequencia_atendimento_empilhadeira = deepcopy(sequencia_atendimento_empilhadeira_original)
+            sequencia_atendimento_veiculo = deepcopy(sequencia_atendimento_veiculo_original)
 
-            lote_tempo = sequencia_atendimento_veiculo[k][0]
-            proximo_lote = lote_tempo[0]
-            proximo_talhao = self.__get_talhao_from_lote(proximo_lote - 1)
+            # 1) Passo 1: Pegar o lote de um veiculo e colocar em outro, de forma aleatória.
+            k_old = random.choice([k for k in self.dados.V if len(sequencia_atendimento_veiculo[k]) > 0])
+            k_new = random.choice([k for k in self.dados.V if k != k_old])
 
-            e = self.__get_empilhadeira_talhao(proximo_talhao, sol_vizinha)
-            if e is not None:
-                empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, sol_vizinha)
-                empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
-            else:
-                e = next((key for key, value in sequencia_atendimento_empilhadeira.items() if proximo_talhao in value), None)
-                if self.__empilhadeira_apta_deslocamento_talhao(e, sol_vizinha):          
-                    ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, sol_vizinha) or 0    
-                    empilhadeira_inicio_atendimento_proximo_lote = self.__get_tempo_chegada_proximo_talhao_empilhadeira(ultimo_talhao, proximo_talhao, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, sol_vizinha)
+            lote_swap = random.choice(sequencia_atendimento_veiculo[k_old])
+            sequencia_atendimento_veiculo[k_old].remove(lote_swap)
+            posicao_swap = random.choice(range(len(sequencia_atendimento_veiculo[k_new]) + 1))
+            sequencia_atendimento_veiculo[k_new].insert(posicao_swap, lote_swap)
 
-                    self.__rotear_empilhadeira(e, ultimo_talhao, proximo_talhao, sol_vizinha)
-                    self.__set_tempo_chegada_empilhadeira_talhao(e, proximo_talhao, empilhadeira_inicio_atendimento_proximo_lote, sol_vizinha)
+            # 2) Passo 2: Chamar um metodo similar a gera_solucao_aleatoria para recalcular a solução. 
+            # A diferença é que agora a sequência de atendimento já está definida. 
+            # Caso não seja possivel, alterar a posição do novo lote a ser atendido e rodar novamente.
+            lotes_nao_atendidos = self.__get_lotes_nao_atendidos(sol_vizinha)
+            cont = 0
+            while lotes_nao_atendidos and cont <= 10:
+                k = min((k for k in sequencia_atendimento_veiculo.keys()), key=lambda k: sequencia_atendimento_veiculo[k][0][1] if sequencia_atendimento_veiculo[k] else float('inf'))
+                ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(k, sol_vizinha)
+                tempo_inicio_atendimento_ultimo_lote_veiculo = self.__get_tempo_inicio_atendimento_lote_veiculo(ultimo_lote_veiculo, k, sol_vizinha)
+
+                lote_tempo = sequencia_atendimento_veiculo[k][0]
+                proximo_lote = lote_tempo[0]
+                proximo_talhao = self.__get_talhao_from_lote(proximo_lote - 1)
+
+                e = self.__get_empilhadeira_talhao(proximo_talhao, sol_vizinha)
+                if e is not None:
+                    empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, sol_vizinha)
+                    empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
                 else:
-                    # Impossivel fazer o roteamento. É necessário fazer outra escolha de veículo e lote.
-                    continue
-            
-            self.__rotear_veiculo(k, ultimo_lote_veiculo, proximo_lote, sol_vizinha)
-            self.__atualizar_variaveis_temporais_veiculo(k, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, empilhadeira_inicio_atendimento_proximo_lote, sol_vizinha)
+                    e = next((key for key, value in sequencia_atendimento_empilhadeira.items() if proximo_talhao in value), None)
+                    if self.__empilhadeira_apta_deslocamento_talhao(e, sol_vizinha):          
+                        ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, sol_vizinha) or 0    
+                        empilhadeira_inicio_atendimento_proximo_lote = self.__get_tempo_chegada_proximo_talhao_empilhadeira(ultimo_talhao, proximo_talhao, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, sol_vizinha)
 
-            sequencia_atendimento_veiculo[k].remove(lote_tempo)
-            lotes_nao_atendidos.remove(proximo_lote)
+                        self.__rotear_empilhadeira(e, ultimo_talhao, proximo_talhao, sol_vizinha)
+                        self.__set_tempo_chegada_empilhadeira_talhao(e, proximo_talhao, empilhadeira_inicio_atendimento_proximo_lote, sol_vizinha)
+                    else:
+                        # Impossivel fazer o roteamento. É necessário fazer outra escolha de veículo e lote.
+                        cont += 1
+                        continue
+                
+                self.__rotear_veiculo(k, ultimo_lote_veiculo, proximo_lote, sol_vizinha)
+                self.__atualizar_variaveis_temporais_veiculo(k, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, empilhadeira_inicio_atendimento_proximo_lote, sol_vizinha)
 
+                sequencia_atendimento_veiculo[k].remove(lote_tempo)
+                lotes_nao_atendidos.remove(proximo_lote)
+                cont = 0
+
+            cont_swap += 1
+
+        if lotes_nao_atendidos:
+            raise ValueError("Não foi possível gerar uma solução vizinha.")
+        
         # Os veiculos devem terminar na garagem
         # Isso não gera nenhum impacto no resultado, apenas garante integridade
         self.__rotear_veiculos_volta_garagem(sol_vizinha)

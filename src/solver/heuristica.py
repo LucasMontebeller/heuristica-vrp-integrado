@@ -28,6 +28,7 @@ class Heuristica():
         solucao = self.modelo.gera_solucao_aleatoria()
         melhor_solucao = solucao
         iteracoes = 0
+        iteracoes_convergencia = 0
 
         # Através do fator de Boltzmann, aceita ou não a troca da solução
         aceita_nova_solucao = lambda energia, temperatura: random.random() < math.exp(-energia / temperatura)
@@ -48,8 +49,9 @@ class Heuristica():
             # atualiza o melhor estado
             if solucao.M < melhor_solucao.M:
                 melhor_solucao = solucao
+                iteracoes_convergencia = iteracoes
 
             T*=alpha
             iteracoes += 1
 
-        return melhor_solucao, iteracoes
+        return melhor_solucao, iteracoes, iteracoes_convergencia
