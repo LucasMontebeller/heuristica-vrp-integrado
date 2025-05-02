@@ -31,7 +31,7 @@ def executa_instancias(instancias: list[tuple[str, Dados]]) -> dict[str, dict]:
         heuristica = Heuristica(modelo)
         # TODO: Executar random_search várias vezes e plotar gráfico de convergência x iteracoes. Isso vai dar o quão restrintivo o gerador de solucoes está.
         # solucao, iteracoes, iteracoes_convergencia = heuristica.random_search(max_exec=1000)
-        solucao, iteracoes, iteracoes_convergencia = heuristica.simulated_annealing(T_inicial=10000)
+        solucao, iteracoes, iteracoes_convergencia = heuristica.simulated_annealing(T_inicial=100000, alpha=0.999)
         
         tempo_execucao = time.time() - inicio
         
