@@ -29,15 +29,16 @@ def executa_instancias(instancias: list[tuple[str, Dados]]) -> dict[str, dict]:
         
         modelo = Modelo(dados)
         heuristica = Heuristica(modelo)
-        # TODO: Executar random_search várias vezes e plotar gráfico de convergência x iteracoes. Isso vai dar o quão restrintivo o gerador de solucoes está.
-        # solucao, iteracoes, iteracoes_convergencia = heuristica.random_search(max_exec=1000)
-        solucao, iteracoes, iteracoes_convergencia = heuristica.simulated_annealing(T_inicial=100000, alpha=0.999)
+        max_exec = 15000
+        # solucao, iteracoes, iteracoes_convergencia = heuristica.random_search(max_exec=max_exec)
+        solucao, iteracoes, iteracoes_convergencia = heuristica.simulated_annealing(T_inicial=10000, alpha=0.999)
         
         tempo_execucao = time.time() - inicio
         
         solucoes[arquivo] = {
             "solucao": solucao,
             "tempo_execucao": tempo_execucao,
+            "iteracoes": iteracoes,
             "iteracoes_convergencia": iteracoes_convergencia
         }
 
@@ -47,7 +48,7 @@ def main():
     dados = carregar_dados()
     solucoes = executa_instancias(dados)
     for arquivo, resultado in solucoes.items():
-        print(f"{arquivo} - Solução: {resultado['solucao'].M}, Tempo: {resultado['tempo_execucao']:.4f} segundos, Iterações convergencia: {resultado['iteracoes_convergencia']}")
+        print(f"{arquivo} - Solução: {resultado['solucao'].M}, Tempo: {resultado['tempo_execucao']:.4f} segundos, Iterações: {resultado['iteracoes']}, Iterações convergencia: {resultado['iteracoes_convergencia']}")
 
 if __name__ == "__main__":
     main()
