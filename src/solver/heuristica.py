@@ -56,3 +56,34 @@ class Heuristica():
             iteracoes += 1
 
         return melhor_solucao, iteracoes, iteracoes_convergencia
+    
+    def busca_tabu(self, max_exec = 200, tamanho_tabu = 10) -> tuple[Solucao, int, int]:
+        solucao = self.modelo.gera_solucao_aleatoria()
+        melhor_solucao = solucao
+        iteracoes = 0
+        iteracoes_convergencia = 0
+
+        tabu_list = []
+
+        while iteracoes < max_exec:
+            nova_solucao = self.modelo.gera_solucao_vizinha(solucao, qtde_swaps=1)
+
+            # Se a nova solução estiver na lista Tabu, a rejeitamos, a não ser que seja melhor que a solução atual
+            if nova_solucao in tabu_list and nova_solucao.M >= solucao.M:
+                continue
+
+            solucao = nova_solucao
+
+            if solucao.M < melhor_solucao.M:
+                melhor_solucao = solucao
+                iteracoes_convergencia = iteracoes
+
+            tabu_list.append(solucao)
+
+            # Se a lista Tabu atingir o tamanho máximo, remove a solução mais antiga
+            if len(tabu_list) > tamanho_tabu:
+                tabu_list.pop(0)
+
+            iteracoes += 1
+
+        return melhor_solucao, iteracoes, iteracoes_convergencia

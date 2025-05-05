@@ -37,6 +37,10 @@ def executa_instancias(instancias: list[tuple[str, Dados]]) -> dict[str, dict]:
         solucao_annealing, iteracoes_annealing, iteracoes_convergencia_annealing = heuristica.simulated_annealing(alpha=0.998, max_exec=max_exec)
         tempo_execucao_annealing = time.time() - inicio
 
+        inicio = time.time()
+        solucao_tabu, iteracoes_tabu, iteracoes_convergencia_tabu = heuristica.busca_tabu(max_exec=max_exec, tamanho_tabu=20)
+        tempo_execucao_tabu = time.time() - inicio
+
         solucoes[arquivo] = {
             "random_search": {
                 "solucao": solucao_random.M,
@@ -50,6 +54,12 @@ def executa_instancias(instancias: list[tuple[str, Dados]]) -> dict[str, dict]:
                 "iteracoes_convergencia": iteracoes_convergencia_annealing,
                 "tempo_execucao": tempo_execucao_annealing
             },
+            "busca_tabu": {
+                "solucao": solucao_tabu.M,
+                "iteracoes": iteracoes_tabu,
+                "iteracoes_convergencia": iteracoes_convergencia_tabu,
+                "tempo_execucao": tempo_execucao_tabu
+            }
         }
 
     return solucoes
