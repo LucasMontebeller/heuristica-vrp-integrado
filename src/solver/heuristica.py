@@ -23,7 +23,7 @@ class Heuristica():
 
         return melhor_solucao, iteracoes, iteracoes_convergencia
 
-    def simulated_annealing(self, T_inicial = 100, alpha = 0.995) -> tuple[Solucao, int]:
+    def simulated_annealing(self, T_inicial = 1000, alpha = 0.999, max_exec = 200) -> tuple[Solucao, int, int]:
         T = T_inicial
         solucao = self.modelo.gera_solucao_aleatoria()
         melhor_solucao = solucao
@@ -33,8 +33,9 @@ class Heuristica():
         # Através do fator de Boltzmann, aceita ou não a troca da solução
         aceita_nova_solucao = lambda energia, temperatura: random.random() < math.exp(-energia / temperatura)
 
-        while T > 0.01:
-            nova_solucao = self.modelo.gera_solucao_vizinha(solucao)
+        while T > 0.01 and iteracoes < max_exec:
+            qtde_swaps = 1 # min(max((iteracoes - iteracoes_convergencia) // 10, 1), 5)
+            nova_solucao = self.modelo.gera_solucao_vizinha(solucao, qtde_swaps=qtde_swaps)
 
             delta_e = nova_solucao.M - solucao.M
 

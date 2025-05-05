@@ -68,7 +68,7 @@ class Modelo:
 
         # Loop força encontrar uma solução vizinha
         lotes_nao_atendidos = [0] # Apenas para entrar no loop
-        maximo_swap = self.__get_numero_maximo_swap(sequencia_atendimento_veiculo_original)
+        maximo_swap = 100 # self.__get_numero_maximo_swap(sequencia_atendimento_veiculo_original)
         cont_swap = 0
         while lotes_nao_atendidos and cont_swap < maximo_swap:
             sol_vizinha = Solucao(self.dados)
