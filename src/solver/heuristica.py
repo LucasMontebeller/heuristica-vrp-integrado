@@ -57,7 +57,7 @@ class Heuristica():
 
         return melhor_solucao, iteracoes, iteracoes_convergencia
     
-    def busca_tabu(self, max_exec = 200, tamanho_tabu = 10) -> tuple[Solucao, int, int]:
+    def tabu_search(self, max_exec = 200, tamanho_tabu = 10) -> tuple[Solucao, int, int]:
         solucao = self.modelo.gera_solucao_aleatoria()
         melhor_solucao = solucao
         iteracoes = 0

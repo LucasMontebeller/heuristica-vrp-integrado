@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import numpy as np
 from solver import Dados, Modelo, Heuristica
 
 def carregar_dados() -> list[tuple[str, Dados]]:
@@ -19,63 +20,75 @@ def carregar_dados() -> list[tuple[str, Dados]]:
     
     return dados_lista
 
-def executa_instancias(instancias: list[tuple[str, Dados]]) -> dict[str, dict]:
+def execucao_heuristica_multiple_times(heuristica, max_exec=1000, n_execucoes=10):
+    solucoes = []
+    tempos = []
+    iteracoes = []
+    iteracoes_convergencia = []
+
+    for _ in range(n_execucoes):
+        inicio = time.time()
+        solucao, iteracao, iteracao_convergencia = heuristica(max_exec=max_exec)
+        tempo_execucao = time.time() - inicio
+
+        solucoes.append(solucao.M)
+        tempos.append(tempo_execucao)
+        iteracoes.append(iteracao)
+        iteracoes_convergencia.append(iteracao_convergencia)
+
+    return {
+        "solucoes": solucoes,
+        "media_solucao": np.mean(solucoes),
+        "desvio_padrao_solucao": np.std(solucoes),
+        "media_tempos_execucao": np.mean(tempos),
+        "desvio_padrao_tempos_execucao": np.std(tempos),
+        "media_iteracoes": np.mean(iteracoes),
+        "desvio_padrao_iteracoes": np.std(iteracoes),
+        "media_iteracoes_convergencia": np.mean(iteracoes_convergencia),
+        "desvio_padrao_iteracoes_convergencia": np.std(iteracoes_convergencia)
+    }
+
+def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> dict[str, dict]:
     solucoes = {}
     for arquivo, dados in instancias:
-        # if arquivo != 'exp0_inicial.json':
-        #     continue
-        
         modelo = Modelo(dados)
         heuristica = Heuristica(modelo)
         max_exec = 1000
-
-        inicio = time.time()
-        solucao_random, iteracoes_random, iteracoes_convergencia_random = heuristica.random_search(max_exec=max_exec)
-        tempo_execucao_random = time.time() - inicio
-
-        inicio = time.time()
-        solucao_annealing, iteracoes_annealing, iteracoes_convergencia_annealing = heuristica.simulated_annealing(alpha=0.998, max_exec=max_exec)
-        tempo_execucao_annealing = time.time() - inicio
-
-        inicio = time.time()
-        solucao_tabu, iteracoes_tabu, iteracoes_convergencia_tabu = heuristica.busca_tabu(max_exec=max_exec, tamanho_tabu=20)
-        tempo_execucao_tabu = time.time() - inicio
+        
+        solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, max_exec=max_exec, n_execucoes=n_execucoes)
+        solucoes_annealing = execucao_heuristica_multiple_times(heuristica.simulated_annealing, max_exec=max_exec, n_execucoes=n_execucoes)
+        solucoes_tabu = execucao_heuristica_multiple_times(heuristica.tabu_search, max_exec=max_exec, n_execucoes=n_execucoes)
 
         solucoes[arquivo] = {
-            "random_search": {
-                "solucao": solucao_random.M,
-                "iteracoes": iteracoes_random,
-                "iteracoes_convergencia": iteracoes_convergencia_random,
-                "tempo_execucao": tempo_execucao_random
-            },
-            "simulated_annealing": {
-                "solucao": solucao_annealing.M,
-                "iteracoes": iteracoes_annealing,
-                "iteracoes_convergencia": iteracoes_convergencia_annealing,
-                "tempo_execucao": tempo_execucao_annealing
-            },
-            "busca_tabu": {
-                "solucao": solucao_tabu.M,
-                "iteracoes": iteracoes_tabu,
-                "iteracoes_convergencia": iteracoes_convergencia_tabu,
-                "tempo_execucao": tempo_execucao_tabu
-            }
+            "random_search": solucoes_random,
+            "simulated_annealing": solucoes_annealing,
+            "tabu_search": solucoes_tabu
         }
 
     return solucoes
 
+def salvar_resultados(solucoes: dict[str, dict], nome_arquivo="resultados.json"):
+    with open(nome_arquivo, "w", encoding="utf-8") as f:
+        json.dump(solucoes, f, ensure_ascii=False, indent=4)
+
 def main():
     dados = carregar_dados()
-    solucoes = executa_instancias(dados)
-    for arquivo, resultado in solucoes.items():
-        print(f"###### {arquivo} ######")
-        for heuristica, resultado_heuristica in resultado.items():
-            print(f"  {heuristica}:")
-            print(f"    Solução: {resultado_heuristica['solucao']}")
-            print(f"    Iterações: {resultado_heuristica['iteracoes']}")
-            print(f"    Iterações para convergência: {resultado_heuristica['iteracoes_convergencia']}")
-            print(f"    Tempo de execução: {resultado_heuristica['tempo_execucao']:.4f} segundos")
-            print("\n")
+    solucoes = executa_instancias(dados, n_execucoes=20)
+    salvar_resultados(solucoes)
+
+    # for arquivo, resultado in solucoes.items():
+    #     print(f"###### {arquivo} ######")
+    #     for heuristica, resultado_heuristica in resultado.items():
+    #         print(f"  {heuristica}:")
+    #         print(f"    Média da solução: {resultado_heuristica['media_solucao']}")
+    #         print(f"    Desvio padrão da solução: {resultado_heuristica['desvio_padrao_solucao']}")
+    #         print(f"    Média das iterações: {resultado_heuristica['media_iteracoes']}")
+    #         print(f"    Desvio padrão das iterações: {resultado_heuristica['desvio_padrao_iteracoes']}")
+    #         print(f"    Média do tempo de execução: {resultado_heuristica['media_tempos_execucao']:.4f} segundos")
+    #         print(f"    Desvio padrão do tempo de execução: {resultado_heuristica['desvio_padrao_tempos_execucao']:.4f} segundos")
+    #         print(f"    Média de iterações até convergência: {resultado_heuristica['media_iteracoes_convergencia']}")
+    #         print(f"    Desvio padrão de iterações até convergência: {resultado_heuristica['desvio_padrao_iteracoes_convergencia']}")
+    #         print("\n")
 
 if __name__ == "__main__":
     main()
