@@ -55,13 +55,11 @@ def execucao_heuristica_multiple_times(heuristica, max_exec=1000, n_execucoes=10
 def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> dict[str, dict]:
     solucoes = {}
     for arquivo, dados in instancias:
-        if arquivo != 'exp0_inicial.json':
-            continue
-
         modelo = Modelo(dados)
         heuristica = Heuristica(modelo)
         max_exec = 1000
         
+        print(f"Executando arquivo {arquivo} {n_execucoes} vezes")
         solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, max_exec=max_exec, n_execucoes=n_execucoes)
         solucoes_annealing = execucao_heuristica_multiple_times(heuristica.simulated_annealing, max_exec=max_exec, n_execucoes=n_execucoes)
         solucoes_tabu = execucao_heuristica_multiple_times(heuristica.tabu_search, max_exec=max_exec, n_execucoes=n_execucoes)
@@ -78,7 +76,7 @@ def salvar_resultados(solucoes: dict[str, dict], nome_arquivo="resultados.json")
     with open(nome_arquivo, "w", encoding="utf-8") as f:
         json.dump(solucoes, f, ensure_ascii=False, indent=4)
 
-def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultados_rodadas_otimizacao"):
+def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultados_100_exec"):
     credenciais_arquivo = 'googleconfig.json'
     SCOPES = [
         'https://www.googleapis.com/auth/spreadsheets',
@@ -106,42 +104,48 @@ def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultado
         print(f"Erro geral ao lidar com a planilha: {e}")
         return
 
+    todas_linhas_resumo = []
     for arquivo, resultados_heuristica in solucoes.items():
         for nome_heuristica, resultados in resultados_heuristica.items():
-            df = pd.DataFrame({
-                'Solução': resultados['solucoes'],
-                'Tempo de Execução': resultados['media_tempos_execucao'],
-                'Iterações': resultados['media_iteracoes'],
-                'Iterações Convergencia': resultados['media_iteracoes_convergencia']
-            })
+            solucoes_individuais_list = resultados.get('solucoes', [])
+            solucoes_individuais_str = ", ".join(map(str, solucoes_individuais_list))
 
-            metrics_df = pd.DataFrame({
-                'Métrica': ['Melhor Solução', 'Média da Solução', 'Desvio Padrão da Solução',
-                            'Média Tempo Execução', 'Desvio Padrão Tempo Execução',
-                            'Média Iterações', 'Desvio Padrão Iterações',
-                            'Média Iterações Convergencia', 'Desvio Padrão Iterações Convergencia'],
-                'Valor': [resultados['melhor_solucao'], resultados['media_solucao'], resultados['desvio_padrao_solucao'],
-                          resultados['media_tempos_execucao'], resultados['desvio_padrao_tempos_execucao'],
-                          resultados['media_iteracoes'], resultados['desvio_padrao_iteracoes'],
-                          resultados['media_iteracoes_convergencia'], resultados['desvio_padrao_iteracoes_convergencia']]
-            })
-            df = pd.concat([df, metrics_df.set_index('Métrica').T.reset_index(drop=True)], ignore_index=True)
-            df = df.replace({np.nan: ''})
+            linha_resumo = {
+                "Experimento": arquivo,
+                "Heurística": nome_heuristica,
+                "Soluções": solucoes_individuais_str,
+                "Melhor Solução": resultados.get('melhor_solucao', ''),
+                "Média Solução": resultados.get('media_solucao', ''),
+                "Desvio Padrão Solução": resultados.get('desvio_padrao_solucao', ''),
+                "Média Tempo de Execução": resultados.get('media_tempos_execucao', ''),
+                "Desvio Padrão Tempo Execução": resultados.get('desvio_padrao_tempos_execucao', ''),
+                "Média Iterações": resultados.get('media_iteracoes', ''),
+                "Desvio Padrão Iterações": resultados.get('desvio_padrao_iteracoes', ''),
+                "Média Iterações Convergência": resultados.get('media_iteracoes_convergencia', ''),
+                "Desvio Padrão Iterações Convergência": resultados.get('desvio_padrao_iteracoes_convergencia', '')
+            }
 
-            nome_aba = f"{arquivo[:30]}_{nome_heuristica[:30]}"
-            try:
-                aba = planilha.worksheet(nome_aba)
-                aba.clear()
-            except gspread.WorksheetNotFound:
-                aba = planilha.add_worksheet(title=nome_aba, rows=df.shape[0], cols=df.shape[1])
+            todas_linhas_resumo.append(linha_resumo)
 
-            aba.update([df.columns.values.tolist()] + df.values.tolist())
+    df_final_resumo = pd.DataFrame(todas_linhas_resumo)
+    df_final_resumo = df_final_resumo.replace({np.nan: '', None: ''})
 
-    print(f"Resultados salvos na planilha '{nome_planilha}' do Google Sheets.")
+    nome_aba = "Resultados"
+    try:
+        aba = planilha.worksheet(nome_aba)
+        aba.clear()
+    except gspread.WorksheetNotFound:
+        aba = planilha.add_worksheet(title=nome_aba, rows=df_final_resumo.shape[0]+1, cols=df_final_resumo.shape[1])
+
+    valores = [df_final_resumo.columns.tolist()] + df_final_resumo.values.tolist()
+    aba.update(valores)
+
+    print(f"Resultados resumidos (com lista individual) salvos na aba '{nome_aba}' da planilha '{nome_planilha}'.")
+
 
 def main():
     dados = carregar_dados()
-    solucoes = executa_instancias(dados, n_execucoes=1)
+    solucoes = executa_instancias(dados, n_execucoes=100)
     salvar_resultados_sheets(solucoes)
 
     # for arquivo, resultado in solucoes.items():
