@@ -38,6 +38,7 @@ def execucao_heuristica_multiple_times(heuristica, max_exec=1000, n_execucoes=10
 
     return {
         "solucoes": solucoes,
+        "melhor_solucao": np.min(solucoes),
         "media_solucao": np.mean(solucoes),
         "desvio_padrao_solucao": np.std(solucoes),
         "media_tempos_execucao": np.mean(tempos),
