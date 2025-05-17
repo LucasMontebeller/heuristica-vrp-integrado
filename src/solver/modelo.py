@@ -50,11 +50,11 @@ class Modelo:
 
         return solucao
     
-    def gera_solucao_vizinha(self, solucao: Solucao, qtde_swaps: int = 1) -> Solucao:
+    def gera_solucao_vizinha(self, solucao: Solucao, maximo_tentativas: int = 100, qtde_swaps: int = 1) -> Solucao:
         """Gera uma solução vizinha para o problema. Consiste no swap de lotes entre veículos."""
-        sequencia_atendimento_empilhadeira_original = dict()
-        for e in self.dados.E:
-            sequencia_atendimento_empilhadeira_original[e] = sorted((talhao for talhao in self.dados.T if solucao.Z[e - 1][talhao - 1] == 1), key=lambda talhao: solucao.C[e - 1][talhao])
+        talhao_empilhadeira_dict = dict()
+        for talhao in self.dados.T:
+            talhao_empilhadeira_dict[talhao] = next(e for e in self.dados.E if solucao.Z[e - 1][talhao - 1] == 1)
 
         sequencia_atendimento_veiculo_original = dict()
         for k in self.dados.V:
@@ -68,11 +68,9 @@ class Modelo:
 
         # Loop força encontrar uma solução vizinha
         lotes_nao_atendidos = [0] # Apenas para entrar no loop
-        maximo_swap = 100 # self.__get_numero_maximo_swap(sequencia_atendimento_veiculo_original)
-        cont_swap = 0
-        while lotes_nao_atendidos and cont_swap < maximo_swap:
+        tentativas = 0
+        while lotes_nao_atendidos and tentativas < maximo_tentativas:
             sol_vizinha = Solucao(self.dados)
-            sequencia_atendimento_empilhadeira = deepcopy(sequencia_atendimento_empilhadeira_original)
             sequencia_atendimento_veiculo = deepcopy(sequencia_atendimento_veiculo_original)
 
             # 1) Passo 1: Pegar o lote de um veiculo e colocar em outro, de forma aleatória.
@@ -89,8 +87,7 @@ class Modelo:
             # A diferença é que agora a sequência de atendimento já está definida. 
             # Caso não seja possivel, alterar a posição do novo lote a ser atendido e rodar novamente.
             lotes_nao_atendidos = self.__get_lotes_nao_atendidos(sol_vizinha)
-            cont = 0
-            while lotes_nao_atendidos and cont <= 10:
+            while lotes_nao_atendidos:
                 k = min((k for k in sequencia_atendimento_veiculo.keys()), key=lambda k: sequencia_atendimento_veiculo[k][0][1] if sequencia_atendimento_veiculo[k] else float('inf'))
                 ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(k, sol_vizinha)
                 tempo_inicio_atendimento_ultimo_lote_veiculo = self.__get_tempo_inicio_atendimento_lote_veiculo(ultimo_lote_veiculo, k, sol_vizinha)
@@ -100,11 +97,8 @@ class Modelo:
                 proximo_talhao = self.__get_talhao_from_lote(proximo_lote - 1)
 
                 e = self.__get_empilhadeira_talhao(proximo_talhao, sol_vizinha)
-                if e is not None:
-                    empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, sol_vizinha)
-                    empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
-                else:
-                    e = next((key for key, value in sequencia_atendimento_empilhadeira.items() if proximo_talhao in value), None)
+                if e is None:
+                    e = talhao_empilhadeira_dict[proximo_talhao]
                     if self.__empilhadeira_apta_deslocamento_talhao(e, sol_vizinha):          
                         ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, sol_vizinha) or 0    
                         empilhadeira_inicio_atendimento_proximo_lote = self.__get_tempo_chegada_proximo_talhao_empilhadeira(ultimo_talhao, proximo_talhao, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, sol_vizinha)
@@ -112,18 +106,19 @@ class Modelo:
                         self.__rotear_empilhadeira(e, ultimo_talhao, proximo_talhao, sol_vizinha)
                         self.__set_tempo_chegada_empilhadeira_talhao(e, proximo_talhao, empilhadeira_inicio_atendimento_proximo_lote, sol_vizinha)
                     else:
-                        # Impossivel fazer o roteamento. É necessário fazer outra escolha de veículo e lote.
-                        cont += 1
-                        continue
+                        # Impossivel fazer o roteamento. É necessário fazer outro swap.
+                        break
+                else:
+                    empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, sol_vizinha)
+                    empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
                 
                 self.__rotear_veiculo(k, ultimo_lote_veiculo, proximo_lote, sol_vizinha)
                 self.__atualizar_variaveis_temporais_veiculo(k, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, empilhadeira_inicio_atendimento_proximo_lote, sol_vizinha)
 
                 sequencia_atendimento_veiculo[k].remove(lote_tempo)
                 lotes_nao_atendidos.remove(proximo_lote)
-                cont = 0
 
-            cont_swap += 1
+            tentativas += 1
 
         if lotes_nao_atendidos:
             raise ValueError("Não foi possível gerar uma solução vizinha.")

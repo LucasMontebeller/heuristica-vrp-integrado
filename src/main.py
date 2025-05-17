@@ -55,12 +55,12 @@ def execucao_heuristica_multiple_times(heuristica, max_exec=1000, n_execucoes=10
 def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> dict[str, dict]:
     solucoes = {}
     for arquivo, dados in instancias:
-        if arquivo != 'exp0_inicial.json':
-            continue
+        # if arquivo != 'exp0_inicial.json':
+        #     continue
 
         modelo = Modelo(dados)
         heuristica = Heuristica(modelo)
-        max_exec = 1000
+        max_exec = 2000
         
         solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, max_exec=max_exec, n_execucoes=n_execucoes)
         solucoes_annealing = execucao_heuristica_multiple_times(heuristica.simulated_annealing, max_exec=max_exec, n_execucoes=n_execucoes)
@@ -142,7 +142,8 @@ def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultado
 def main():
     dados = carregar_dados()
     solucoes = executa_instancias(dados, n_execucoes=1)
-    salvar_resultados_sheets(solucoes)
+    # salvar_resultados_sheets(solucoes)
+    print('')
 
     # for arquivo, resultado in solucoes.items():
     #     print(f"###### {arquivo} ######")
