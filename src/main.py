@@ -57,7 +57,7 @@ def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> d
     for arquivo, dados in instancias:
         modelo = Modelo(dados)
         heuristica = Heuristica(modelo)
-        max_exec = 1000
+        max_exec = 2000
         
         print(f"Executando arquivo {arquivo} {n_execucoes} vezes")
         solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, max_exec=max_exec, n_execucoes=n_execucoes)
@@ -145,8 +145,9 @@ def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultado
 
 def main():
     dados = carregar_dados()
-    solucoes = executa_instancias(dados, n_execucoes=100)
-    salvar_resultados_sheets(solucoes)
+    solucoes = executa_instancias(dados, n_execucoes=1)
+    # salvar_resultados_sheets(solucoes)
+    print('')
 
     # for arquivo, resultado in solucoes.items():
     #     print(f"###### {arquivo} ######")
