@@ -55,9 +55,12 @@ def execucao_heuristica_multiple_times(heuristica, max_exec=1000, n_execucoes=10
 def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> dict[str, dict]:
     solucoes = {}
     for arquivo, dados in instancias:
+        if arquivo != 'exp08_01.json':
+            continue
+        
         modelo = Modelo(dados)
         heuristica = Heuristica(modelo)
-        max_exec = 2000
+        max_exec = 5000
         
         print(f"Executando arquivo {arquivo} {n_execucoes} vezes")
         solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, max_exec=max_exec, n_execucoes=n_execucoes)

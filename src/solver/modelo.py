@@ -45,13 +45,15 @@ class Modelo:
         # Os veiculos devem terminar na garagem
         # Isso não gera nenhum impacto no resultado, apenas garante integridade
         self.__rotear_veiculos_volta_garagem(solucao)
-
         self.__atualizar_makespan(solucao)
 
         return solucao
     
     def gera_solucao_vizinha(self, solucao: Solucao, maximo_tentativas: int = 100, qtde_swaps: int = 1) -> Solucao:
         """Gera uma solução vizinha para o problema. Consiste no swap de lotes entre veículos."""
+        if self.dados.nV < 2:
+            raise ValueError("Não é possível gerar uma solução vizinha com menos de dois veículos.")
+        
         talhao_empilhadeira_dict = dict()
         for talhao in self.dados.T:
             talhao_empilhadeira_dict[talhao] = next(e for e in self.dados.E if solucao.Z[e - 1][talhao - 1] == 1)
@@ -63,25 +65,14 @@ class Modelo:
             key=lambda item: solucao.D[k - 1][item[0] - 1]
         )
 
-        if len(sequencia_atendimento_veiculo_original) < 2:
-            raise ValueError("Não é possível gerar uma solução vizinha com menos de dois veículos.")
-
         # Loop força encontrar uma solução vizinha
-        lotes_nao_atendidos = [0] # Apenas para entrar no loop
         tentativas = 0
-        while lotes_nao_atendidos and tentativas < maximo_tentativas:
+        while tentativas < maximo_tentativas:
             sol_vizinha = Solucao(self.dados)
             sequencia_atendimento_veiculo = deepcopy(sequencia_atendimento_veiculo_original)
 
             # 1) Passo 1: Pegar o lote de um veiculo e colocar em outro, de forma aleatória.
-            for _ in range(qtde_swaps):
-                k_old = random.choice([k for k in self.dados.V if len(sequencia_atendimento_veiculo[k]) > 0])
-                k_new = random.choice([k for k in self.dados.V if k != k_old])
-
-                lote_swap = random.choice(sequencia_atendimento_veiculo[k_old])
-                sequencia_atendimento_veiculo[k_old].remove(lote_swap)
-                posicao_swap = random.choice(range(len(sequencia_atendimento_veiculo[k_new]) + 1))
-                sequencia_atendimento_veiculo[k_new].insert(posicao_swap, lote_swap)
+            self.__swap_lotes_veiculos(sequencia_atendimento_veiculo, qtde_swaps)
 
             # 2) Passo 2: Chamar um metodo similar a gera_solucao_aleatoria para recalcular a solução. 
             # A diferença é que agora a sequência de atendimento já está definida. 
@@ -118,6 +109,10 @@ class Modelo:
                 sequencia_atendimento_veiculo[k].remove(lote_tempo)
                 lotes_nao_atendidos.remove(proximo_lote)
 
+            # Controle do loop externo
+            if not lotes_nao_atendidos:
+                break
+            
             tentativas += 1
 
         if lotes_nao_atendidos:
@@ -126,7 +121,6 @@ class Modelo:
         # Os veiculos devem terminar na garagem
         # Isso não gera nenhum impacto no resultado, apenas garante integridade
         self.__rotear_veiculos_volta_garagem(sol_vizinha)
-
         self.__atualizar_makespan(sol_vizinha)
         
         return sol_vizinha
@@ -274,15 +268,13 @@ class Modelo:
         """Atualiza a variável makespan 'M'."""
         solucao.M = max(solucao.H)
 
-    def __get_numero_maximo_swap(self, sequencia_atendimento_veiculo_original: dict) -> int:
-        """Retorna o número máximo de swaps possíveis."""
-        maximo_swap = 0
-        for k_old in self.dados.V:
-            n_old = len(sequencia_atendimento_veiculo_original[k_old])
-            for k_new in self.dados.V:
-                if k_old == k_new:
-                    continue
-                n_new = len(sequencia_atendimento_veiculo_original[k_new])
-                maximo_swap += n_old * (n_new + 1)
+    def __swap_lotes_veiculos(self, sequencia_atendimento_veiculos: dict, qtde_swaps: int) -> None:
+        """Faz 'qtde_swaps' trocas de lotes entre dois veiculos."""
+        for _ in range(qtde_swaps):
+            k_old = random.choice([k for k in self.dados.V if len(sequencia_atendimento_veiculos[k]) > 0])
+            k_new = random.choice([k for k in self.dados.V if k != k_old])
 
-        return maximo_swap
+            lote_swap = random.choice(sequencia_atendimento_veiculos[k_old])
+            sequencia_atendimento_veiculos[k_old].remove(lote_swap)
+            posicao_swap = random.choice(range(len(sequencia_atendimento_veiculos[k_new]) + 1))
+            sequencia_atendimento_veiculos[k_new].insert(posicao_swap, lote_swap)
