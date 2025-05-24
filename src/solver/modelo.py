@@ -54,16 +54,8 @@ class Modelo:
         if self.dados.nV < 2:
             raise ValueError("Não é possível gerar uma solução vizinha com menos de dois veículos.")
         
-        talhao_empilhadeira_dict = dict()
-        for talhao in self.dados.T:
-            talhao_empilhadeira_dict[talhao] = next(e for e in self.dados.E if solucao.Z[e - 1][talhao - 1] == 1)
-
-        sequencia_atendimento_veiculo_original = dict()
-        for k in self.dados.V:
-            sequencia_atendimento_veiculo_original[k] = sorted(
-            ((lote, solucao.H[lote - 1]) for lote in self.dados.L if solucao.S[k - 1][lote - 1] == 1),
-            key=lambda item: solucao.D[k - 1][item[0] - 1]
-        )
+        talhao_empilhadeira_dict = self.__obter_alocacao_talhao_empilhadeira(solucao)
+        sequencia_atendimento_veiculo_original = self.__obter_sequencia_visitas(solucao)
 
         # Loop força encontrar uma solução vizinha
         tentativas = 0
@@ -79,6 +71,7 @@ class Modelo:
             # Caso não seja possivel, alterar a posição do novo lote a ser atendido e rodar novamente.
             lotes_nao_atendidos = self.__get_lotes_nao_atendidos(sol_vizinha)
             while lotes_nao_atendidos:
+                # TODO: Da para melhorar com heapq
                 k = min((k for k in sequencia_atendimento_veiculo.keys()), key=lambda k: sequencia_atendimento_veiculo[k][0][1] if sequencia_atendimento_veiculo[k] else float('inf'))
                 ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(k, sol_vizinha)
                 tempo_inicio_atendimento_ultimo_lote_veiculo = self.__get_tempo_inicio_atendimento_lote_veiculo(ultimo_lote_veiculo, k, sol_vizinha)
@@ -112,7 +105,7 @@ class Modelo:
             # Controle do loop externo
             if not lotes_nao_atendidos:
                 break
-            
+
             tentativas += 1
 
         if lotes_nao_atendidos:
@@ -267,6 +260,25 @@ class Modelo:
     def __atualizar_makespan(self, solucao: Solucao) -> None:
         """Atualiza a variável makespan 'M'."""
         solucao.M = max(solucao.H)
+
+    def __obter_alocacao_talhao_empilhadeira(self, solucao: Solucao) -> dict:
+        """Obtem um dicionário dos talhões (keys) e as respectivas empilhadeiras que os atenderam (values)"""
+        talhao_empilhadeira_dict = dict()
+        for talhao in self.dados.T:
+            talhao_empilhadeira_dict[talhao] = next(e for e in self.dados.E if solucao.Z[e - 1][talhao - 1] == 1)
+
+        return talhao_empilhadeira_dict
+    
+    def __obter_sequencia_visitas(self, solucao: Solucao) -> dict:
+        """Obtem um dicionário dos veiculos (keys) com a respectiva sequência de atendimento, sendo a tupla (lote, horario)"""
+        sequencia_visitas = dict()
+        for k in self.dados.V:
+            sequencia_visitas[k] = sorted(
+            ((lote, solucao.H[lote - 1]) for lote in self.dados.L if solucao.S[k - 1][lote - 1] == 1),
+            key=lambda item: solucao.D[k - 1][item[0] - 1]
+        )
+            
+        return sequencia_visitas
 
     def __swap_lotes_veiculos(self, sequencia_atendimento_veiculos: dict, qtde_swaps: int) -> None:
         """Faz 'qtde_swaps' trocas de lotes entre dois veiculos."""
