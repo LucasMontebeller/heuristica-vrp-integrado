@@ -22,10 +22,7 @@ class Modelo:
             proximo_talhao = self.__get_talhao_from_lote(proximo_lote - 1)
 
             e = self.__get_empilhadeira_talhao(proximo_talhao, solucao)
-            if e is not None:
-                empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, solucao)
-                empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
-            else:
+            if e is None:
                 e = self.__selecionar_empilhadeira_livre(solucao)
                 if self.__empilhadeira_apta_deslocamento_talhao(e, solucao):          
                     ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, solucao) or 0    
@@ -36,6 +33,9 @@ class Modelo:
                 else:
                     # Impossivel fazer o roteamento. É necessário fazer outra escolha de veículo e lote.
                     continue
+            else:
+                empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, solucao)
+                empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
             
             self.__rotear_veiculo(k, ultimo_lote_veiculo, proximo_lote, solucao)
             self.__atualizar_variaveis_temporais_veiculo(k, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, empilhadeira_inicio_atendimento_proximo_lote, solucao)
@@ -45,55 +45,43 @@ class Modelo:
         # Os veiculos devem terminar na garagem
         # Isso não gera nenhum impacto no resultado, apenas garante integridade
         self.__rotear_veiculos_volta_garagem(solucao)
-
         self.__atualizar_makespan(solucao)
 
         return solucao
     
     def gera_solucao_vizinha(self, solucao: Solucao, maximo_tentativas: int = 100, qtde_swaps: int = 1) -> Solucao:
         """Gera uma solução vizinha para o problema. Consiste no swap de lotes entre veículos."""
+        if self.dados.nV < 2:
+            raise ValueError("Não é possível gerar uma solução vizinha com menos de dois veículos.")
+        
         talhao_empilhadeira_dict = dict()
         for talhao in self.dados.T:
             talhao_empilhadeira_dict[talhao] = next(e for e in self.dados.E if solucao.Z[e - 1][talhao - 1] == 1)
-
-        sequencia_atendimento_veiculo_original = dict()
-        for k in self.dados.V:
-            sequencia_atendimento_veiculo_original[k] = sorted(
-            ((lote, solucao.H[lote - 1]) for lote in self.dados.L if solucao.S[k - 1][lote - 1] == 1),
-            key=lambda item: solucao.D[k - 1][item[0] - 1]
-        )
-
-        if len(sequencia_atendimento_veiculo_original) < 2:
-            raise ValueError("Não é possível gerar uma solução vizinha com menos de dois veículos.")
+            
+        sequencia_atendimento_veiculos_original = sorted([
+            (k, lote_info[0], lote_info[1])
+            for k in self.dados.V
+            for lote_info in sorted(
+                ((lote, solucao.H[lote - 1]) for lote in self.dados.L if solucao.S[k - 1][lote - 1] == 1),
+                key=lambda item: solucao.D[k - 1][item[0] - 1]
+            )
+        ], key=lambda item: item[2])
 
         # Loop força encontrar uma solução vizinha
-        lotes_nao_atendidos = [0] # Apenas para entrar no loop
         tentativas = 0
-        while lotes_nao_atendidos and tentativas < maximo_tentativas:
+        while tentativas < maximo_tentativas:
             sol_vizinha = Solucao(self.dados)
-            sequencia_atendimento_veiculo = deepcopy(sequencia_atendimento_veiculo_original)
+            sequencia_atendimento_veiculos = deepcopy(sequencia_atendimento_veiculos_original)
 
-            # 1) Passo 1: Pegar o lote de um veiculo e colocar em outro, de forma aleatória.
-            for _ in range(qtde_swaps):
-                k_old = random.choice([k for k in self.dados.V if len(sequencia_atendimento_veiculo[k]) > 0])
-                k_new = random.choice([k for k in self.dados.V if k != k_old])
-
-                lote_swap = random.choice(sequencia_atendimento_veiculo[k_old])
-                sequencia_atendimento_veiculo[k_old].remove(lote_swap)
-                posicao_swap = random.choice(range(len(sequencia_atendimento_veiculo[k_new]) + 1))
-                sequencia_atendimento_veiculo[k_new].insert(posicao_swap, lote_swap)
-
+            self.__swap_lotes_veiculos(sequencia_atendimento_veiculos, qtde_swaps)
+            
             # 2) Passo 2: Chamar um metodo similar a gera_solucao_aleatoria para recalcular a solução. 
             # A diferença é que agora a sequência de atendimento já está definida. 
             # Caso não seja possivel, alterar a posição do novo lote a ser atendido e rodar novamente.
-            lotes_nao_atendidos = self.__get_lotes_nao_atendidos(sol_vizinha)
-            while lotes_nao_atendidos:
-                k = min((k for k in sequencia_atendimento_veiculo.keys()), key=lambda k: sequencia_atendimento_veiculo[k][0][1] if sequencia_atendimento_veiculo[k] else float('inf'))
-                ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(k, sol_vizinha)
-                tempo_inicio_atendimento_ultimo_lote_veiculo = self.__get_tempo_inicio_atendimento_lote_veiculo(ultimo_lote_veiculo, k, sol_vizinha)
-
-                lote_tempo = sequencia_atendimento_veiculo[k][0]
-                proximo_lote = lote_tempo[0]
+            for seq in sequencia_atendimento_veiculos:
+                veiculo, proximo_lote = seq[:2]
+                ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(veiculo, sol_vizinha)
+                tempo_inicio_atendimento_ultimo_lote_veiculo = self.__get_tempo_inicio_atendimento_lote_veiculo(ultimo_lote_veiculo, veiculo, sol_vizinha)
                 proximo_talhao = self.__get_talhao_from_lote(proximo_lote - 1)
 
                 e = self.__get_empilhadeira_talhao(proximo_talhao, sol_vizinha)
@@ -111,22 +99,22 @@ class Modelo:
                 else:
                     empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, sol_vizinha)
                     empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
-                
-                self.__rotear_veiculo(k, ultimo_lote_veiculo, proximo_lote, sol_vizinha)
-                self.__atualizar_variaveis_temporais_veiculo(k, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, empilhadeira_inicio_atendimento_proximo_lote, sol_vizinha)
+                    
+                self.__rotear_veiculo(veiculo, ultimo_lote_veiculo, proximo_lote, sol_vizinha)
+                self.__atualizar_variaveis_temporais_veiculo(veiculo, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, empilhadeira_inicio_atendimento_proximo_lote, sol_vizinha)
 
-                sequencia_atendimento_veiculo[k].remove(lote_tempo)
-                lotes_nao_atendidos.remove(proximo_lote)
+            if not self.__get_lotes_nao_atendidos(sol_vizinha):
+                break
 
             tentativas += 1
 
+        lotes_nao_atendidos = self.__get_lotes_nao_atendidos(sol_vizinha)
         if lotes_nao_atendidos:
             raise ValueError("Não foi possível gerar uma solução vizinha.")
         
         # Os veiculos devem terminar na garagem
         # Isso não gera nenhum impacto no resultado, apenas garante integridade
         self.__rotear_veiculos_volta_garagem(sol_vizinha)
-
         self.__atualizar_makespan(sol_vizinha)
         
         return sol_vizinha
@@ -274,15 +262,18 @@ class Modelo:
         """Atualiza a variável makespan 'M'."""
         solucao.M = max(solucao.H)
 
-    def __get_numero_maximo_swap(self, sequencia_atendimento_veiculo_original: dict) -> int:
-        """Retorna o número máximo de swaps possíveis."""
-        maximo_swap = 0
-        for k_old in self.dados.V:
-            n_old = len(sequencia_atendimento_veiculo_original[k_old])
-            for k_new in self.dados.V:
-                if k_old == k_new:
-                    continue
-                n_new = len(sequencia_atendimento_veiculo_original[k_new])
-                maximo_swap += n_old * (n_new + 1)
+    def __swap_lotes_veiculos(self, sequencia_atendimento_veiculos: list, qtde_swaps: int) -> None:
+        """Faz 'qtde_swaps' trocas de lotes entre dois veiculos."""
+        veiculos = {seq[0] for seq in sequencia_atendimento_veiculos}
+        for _ in range(qtde_swaps):
+            k_old = random.choice([k for k in self.dados.V if k in veiculos])
+            k_new = random.choice([k for k in self.dados.V if k != k_old])
 
-        return maximo_swap
+            seq_old = [seq for seq in sequencia_atendimento_veiculos if seq[0] == k_old]
+            seq_new = [seq for seq in sequencia_atendimento_veiculos if seq[0] == k_new]
+
+            seq_swap = random.choice(seq_old)
+            sequencia_atendimento_veiculos.remove(seq_swap)
+            posicao_swap = random.choice(range(len(seq_new) + 1))
+            new_seq = (k_new, *seq_swap[1:])
+            sequencia_atendimento_veiculos.insert(posicao_swap, new_seq)
