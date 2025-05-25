@@ -57,20 +57,19 @@ class Modelo:
         talhao_empilhadeira_dict = self.__obter_alocacao_talhao_empilhadeira(solucao)
         sequencia_atendimento_veiculo_original = self.__obter_sequencia_visitas(solucao)
 
-        # Loop força encontrar uma solução vizinha
-        tentativas = 0
-        while tentativas < maximo_tentativas:
+        # Loop força encontrar uma solução vizinha em um numero maximo de tentativas
+        for _ in range(maximo_tentativas):
             sol_vizinha = Solucao(self.dados)
             sequencia_atendimento_veiculo = deepcopy(sequencia_atendimento_veiculo_original)
 
             # 1) Passo 1: Pegar o lote de um veiculo e colocar em outro, de forma aleatória.
-            self.__swap_lotes_veiculos(sequencia_atendimento_veiculo, qtde_swaps)
+            reorder = False # random.random() > 0.5
+            self.__swap_lotes_veiculos(sequencia_atendimento_veiculo, qtde_swaps, reorder)
 
             # 2) Passo 2: Chamar um metodo similar a gera_solucao_aleatoria para recalcular a solução. 
             # A diferença é que agora a sequência de atendimento já está definida. 
             # Caso não seja possivel, alterar a posição do novo lote a ser atendido e rodar novamente.
-            lotes_nao_atendidos = self.__get_lotes_nao_atendidos(sol_vizinha)
-            while lotes_nao_atendidos:
+            while any(sequencia_atendimento_veiculo.values()):
                 # TODO: Da para melhorar com heapq
                 k = min((k for k in sequencia_atendimento_veiculo.keys()), key=lambda k: sequencia_atendimento_veiculo[k][0][1] if sequencia_atendimento_veiculo[k] else float('inf'))
                 ultimo_lote_veiculo = self.__ultimo_lote_atendido_veiculo(k, sol_vizinha)
@@ -81,7 +80,10 @@ class Modelo:
                 proximo_talhao = self.__get_talhao_from_lote(proximo_lote - 1)
 
                 e = self.__get_empilhadeira_talhao(proximo_talhao, sol_vizinha)
-                if e is None:
+                if e is not None:
+                    empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, sol_vizinha)
+                    empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
+                else:
                     e = talhao_empilhadeira_dict[proximo_talhao]
                     if self.__empilhadeira_apta_deslocamento_talhao(e, sol_vizinha):          
                         ultimo_talhao = self.__ultimo_talhao_atendido_empilhadeira(e, sol_vizinha) or 0    
@@ -92,17 +94,14 @@ class Modelo:
                     else:
                         # Impossivel fazer o roteamento. É necessário fazer outro swap.
                         break
-                else:
-                    empilhadeira_inicio_atendimento_ultimo_lote = self.__get_tempo_inicio_atendimento_ultimo_lote(proximo_talhao, sol_vizinha)
-                    empilhadeira_inicio_atendimento_proximo_lote = empilhadeira_inicio_atendimento_ultimo_lote + self.dados.TC
                 
                 self.__rotear_veiculo(k, ultimo_lote_veiculo, proximo_lote, sol_vizinha)
                 self.__atualizar_variaveis_temporais_veiculo(k, ultimo_lote_veiculo, proximo_lote, tempo_inicio_atendimento_ultimo_lote_veiculo, empilhadeira_inicio_atendimento_proximo_lote, sol_vizinha)
 
                 sequencia_atendimento_veiculo[k].remove(lote_tempo)
-                lotes_nao_atendidos.remove(proximo_lote)
 
             # Controle do loop externo
+            lotes_nao_atendidos = self.__get_lotes_nao_atendidos(sol_vizinha)
             if not lotes_nao_atendidos:
                 break
 
@@ -280,7 +279,7 @@ class Modelo:
             
         return sequencia_visitas
 
-    def __swap_lotes_veiculos(self, sequencia_atendimento_veiculos: dict, qtde_swaps: int) -> None:
+    def __swap_lotes_veiculos(self, sequencia_atendimento_veiculos: dict, qtde_swaps: int, reorder: bool = False) -> None:
         """Faz 'qtde_swaps' trocas de lotes entre dois veiculos."""
         for _ in range(qtde_swaps):
             k_old = random.choice([k for k in self.dados.V if len(sequencia_atendimento_veiculos[k]) > 0])
@@ -290,3 +289,7 @@ class Modelo:
             sequencia_atendimento_veiculos[k_old].remove(lote_swap)
             posicao_swap = random.choice(range(len(sequencia_atendimento_veiculos[k_new]) + 1))
             sequencia_atendimento_veiculos[k_new].insert(posicao_swap, lote_swap)
+            # Reordena toda a sequência baseada no tempo de atendimento original, ou seja, ignora a posicao inserida.
+            # Em geral isso piora o algortimo (discutir na dissertação)
+            if reorder: 
+                sequencia_atendimento_veiculos[k_new].sort(key=lambda lote_tempo: lote_tempo[1])
