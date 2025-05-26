@@ -51,8 +51,6 @@ class Modelo:
     
     def gera_solucao_vizinha(self, solucao: Solucao, maximo_tentativas: int = 100, qtde_swaps: int = 1) -> Solucao:
         """Gera uma solução vizinha para o problema. Consiste no swap de lotes entre veículos."""
-        if self.dados.nV < 2:
-            raise ValueError("Não é possível gerar uma solução vizinha com menos de dois veículos.")
         
         talhao_empilhadeira_dict = self.__obter_alocacao_talhao_empilhadeira(solucao)
         sequencia_atendimento_veiculo_original = self.__obter_sequencia_visitas(solucao)
@@ -104,8 +102,6 @@ class Modelo:
             lotes_nao_atendidos = self.__get_lotes_nao_atendidos(sol_vizinha)
             if not lotes_nao_atendidos:
                 break
-
-            tentativas += 1
 
         if lotes_nao_atendidos:
             raise ValueError("Não foi possível gerar uma solução vizinha.")
@@ -280,10 +276,14 @@ class Modelo:
         return sequencia_visitas
 
     def __swap_lotes_veiculos(self, sequencia_atendimento_veiculos: dict, qtde_swaps: int, reorder: bool = False) -> None:
-        """Faz 'qtde_swaps' trocas de lotes entre dois veiculos."""
+        """Faz 'qtde_swaps' trocas de lotes entre veiculos."""
         for _ in range(qtde_swaps):
             k_old = random.choice([k for k in self.dados.V if len(sequencia_atendimento_veiculos[k]) > 0])
-            k_new = random.choice([k for k in self.dados.V if k != k_old])
+
+            if len(sequencia_atendimento_veiculos) >= 2:
+                k_new = random.choice([k for k in self.dados.V if k != k_old])
+            else:
+                k_new = k_old
 
             lote_swap = random.choice(sequencia_atendimento_veiculos[k_old])
             sequencia_atendimento_veiculos[k_old].remove(lote_swap)
