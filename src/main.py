@@ -142,12 +142,79 @@ def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultado
 
     print(f"Resultados resumidos (com lista individual) salvos na aba '{nome_aba}' da planilha '{nome_planilha}'.")
 
+def calibrar_simulated_annealing(instancias: list[tuple[str, Dados]], n_execucoes=10):
+    configuracoes = {
+        "C1": {"T_inicial": 100, "alpha": 0.999},
+    }
+
+    cplex_optimal = {
+        "exp08_01.json": 16.238,
+        "exp08_02.json": 12.185,
+        "exp08_03.json": 14.238,
+        "exp08_04.json": 14.222,
+        "exp08_05.json": 11.170,
+        "exp08_06.json": 10.014,
+        "exp08_07.json": 6.677,
+
+        "exp10_01.json": 18.238,
+        "exp10_02.json": 14.185,
+        "exp10_03.json": 15.238,
+        "exp10_04.json": 16.223,
+        "exp10_05.json": 13.170,
+        "exp10_06.json": 11.930,
+        "exp10_07.json": 8.107,
+
+        "exp12_01.json": 23.290,
+        "exp12_02.json": 17.561,
+        "exp12_03.json": 20.290,
+        "exp12_04.json": 18.890,
+        "exp12_05.json": 16.545,
+        "exp12_06.json": 15.406,
+        "exp12_07.json": 10.402,
+    }
+
+    for nome_configuracao, configuracao in configuracoes.items():
+        T_inicial = configuracao["T_inicial"]
+        alpha = configuracao["alpha"]
+
+        print(f"Calibrando Simulated Annealing com {nome_configuracao}: T_inicial={T_inicial}, alpha={alpha} \n")
+        solucoes = {}
+        for arquivo, dados in instancias:
+            if arquivo in ('exp0_inicial.json', 'exp_30_01.json'):
+                continue
+
+            valor_otimo = cplex_optimal[arquivo]
+            modelo = Modelo(dados)
+            heuristica = Heuristica(modelo)
+
+            solucoes_simulated = []
+            rdps = []
+            print(f"Executando arquivo {arquivo} {n_execucoes} vezes")
+            for _ in range(n_execucoes):
+                solucao, iteracao, iteracao_convergencia = heuristica.simulated_annealing(T_inicial=T_inicial, alpha=alpha)
+                solucoes_simulated.append(solucao.M)
+                rdps.append(solucao.get_desvio_relativo(valor_otimo))
+
+            rdps_media = np.mean(rdps) if rdps else None
+            solucoes[arquivo] = {
+                "T_inicial": T_inicial,
+                "alpha": alpha,
+                "simulated_annealing": solucoes,
+                "rdps": rdps,
+                "rdps_media": rdps_media
+            }
+
+        salvar_resultados_sheets(solucoes, nome_planilha="SA_" + nome_configuracao)
+
+    return solucoes
+
 
 def main():
     dados = carregar_dados()
-    solucoes = executa_instancias(dados, n_execucoes=1)
+    # solucoes = executa_instancias(dados, n_execucoes=1)
     # salvar_resultados_sheets(solucoes)
-    print('')
+
+    calibrar_simulated_annealing(dados, n_execucoes=10)
 
     # for arquivo, resultado in solucoes.items():
     #     print(f"###### {arquivo} ######")

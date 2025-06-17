@@ -26,4 +26,8 @@ class Solucao:
         self.Y = [[[0 for _ in range(dados.nT + 2)] for _ in range(dados.nT + 2)] for _ in range(dados.nE)]
         self.Z = [[0 for _ in range(dados.nT)] for _ in range(dados.nE)]
         self.C = [[0.0 for _ in range(dados.nT + 2)] for _ in range(dados.nE)]
-        self.M = 0.0  
+        self.M = 0.0
+
+    def get_desvio_relativo(self, valor_otimo: float) -> float:
+        """Calcula o desvio relativo entre a solução atual e o valor ótimo.""" 
+        return abs((self.M - valor_otimo)) / valor_otimo if valor_otimo != 0 else float('inf')

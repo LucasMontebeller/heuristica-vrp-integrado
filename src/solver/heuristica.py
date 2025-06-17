@@ -33,7 +33,7 @@ class Heuristica():
         # Através do fator de Boltzmann, aceita ou não a troca da solução
         aceita_nova_solucao = lambda energia, temperatura: random.random() < math.exp(-energia / temperatura)
 
-        while T > 0.01 and iteracoes < max_exec:
+        while T > 0.01: #and iteracoes < max_exec:
             qtde_swaps = 1 # min(max((iteracoes - iteracoes_convergencia) // 10, 1), 5)
             nova_solucao = self.modelo.gera_solucao_vizinha(solucao, qtde_swaps=qtde_swaps)
 
