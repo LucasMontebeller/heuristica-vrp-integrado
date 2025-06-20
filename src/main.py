@@ -110,19 +110,27 @@ def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultado
             solucoes_individuais_list = resultados.get('solucoes', [])
             solucoes_individuais_str = ", ".join(map(str, solucoes_individuais_list))
 
+            rdps = resultados.get('rdps', [])
+            rdps_individuais_str = ", ".join(map(str, rdps))
+
             linha_resumo = {
+                "T_inicial": resultados.get('T_inicial', ''),
+                "alpha": resultados.get('alpha', ''),
                 "Experimento": arquivo,
                 "Heurística": nome_heuristica,
                 "Soluções": solucoes_individuais_str,
-                "Melhor Solução": resultados.get('melhor_solucao', ''),
-                "Média Solução": resultados.get('media_solucao', ''),
-                "Desvio Padrão Solução": resultados.get('desvio_padrao_solucao', ''),
-                "Média Tempo de Execução": resultados.get('media_tempos_execucao', ''),
-                "Desvio Padrão Tempo Execução": resultados.get('desvio_padrao_tempos_execucao', ''),
-                "Média Iterações": resultados.get('media_iteracoes', ''),
-                "Desvio Padrão Iterações": resultados.get('desvio_padrao_iteracoes', ''),
-                "Média Iterações Convergência": resultados.get('media_iteracoes_convergencia', ''),
-                "Desvio Padrão Iterações Convergência": resultados.get('desvio_padrao_iteracoes_convergencia', '')
+                "rdps": rdps_individuais_str,
+                "rdps_media": resultados.get('rdps_media', '')
+
+                # "Melhor Solução": resultados.get('melhor_solucao', ''),
+                # "Média Solução": resultados.get('media_solucao', ''),
+                # "Desvio Padrão Solução": resultados.get('desvio_padrao_solucao', ''),
+                # "Média Tempo de Execução": resultados.get('media_tempos_execucao', ''),
+                # "Desvio Padrão Tempo Execução": resultados.get('desvio_padrao_tempos_execucao', ''),
+                # "Média Iterações": resultados.get('media_iteracoes', ''),
+                # "Desvio Padrão Iterações": resultados.get('desvio_padrao_iteracoes', ''),
+                # "Média Iterações Convergência": resultados.get('media_iteracoes_convergencia', ''),
+                # "Desvio Padrão Iterações Convergência": resultados.get('desvio_padrao_iteracoes_convergencia', '')
             }
 
             todas_linhas_resumo.append(linha_resumo)
@@ -144,7 +152,13 @@ def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultado
 
 def calibrar_simulated_annealing(instancias: list[tuple[str, Dados]], n_execucoes=10):
     configuracoes = {
-        "C1": {"T_inicial": 100, "alpha": 0.999},
+        f"C{i+1}": {"T_inicial": T, "alpha": a}
+        for i, (T, a) in enumerate([
+            (100, 0.950), (100, 0.970), (100, 0.990), (100, 0.995),
+            (500, 0.950), (500, 0.970), (500, 0.990), (500, 0.995),
+            (1000, 0.950), (1000, 0.970), (1000, 0.990), (1000, 0.995),
+            (2000, 0.950), (2000, 0.970), (2000, 0.990), (2000, 0.995),
+        ])
     }
 
     cplex_optimal = {
@@ -197,11 +211,13 @@ def calibrar_simulated_annealing(instancias: list[tuple[str, Dados]], n_execucoe
 
             rdps_media = np.mean(rdps) if rdps else None
             solucoes[arquivo] = {
-                "T_inicial": T_inicial,
-                "alpha": alpha,
-                "simulated_annealing": solucoes,
-                "rdps": rdps,
-                "rdps_media": rdps_media
+                "simulated_annealing": {
+                    "T_inicial": T_inicial,
+                    "alpha": alpha,
+                    "solucoes": solucoes_simulated,
+                    "rdps": rdps,
+                    "rdps_media": rdps_media
+                }
             }
 
         salvar_resultados_sheets(solucoes, nome_planilha="SA_" + nome_configuracao)
