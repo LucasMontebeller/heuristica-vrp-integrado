@@ -117,19 +117,19 @@ def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultado
                 "T_inicial": resultados.get('T_inicial', ''),
                 "alpha": resultados.get('alpha', ''),
                 "Experimento": arquivo,
-                "Heurística": nome_heuristica,
+                # "Heurística": nome_heuristica,
                 "Soluções": solucoes_individuais_str,
                 "rdps": rdps_individuais_str,
-                "rdps_media": resultados.get('rdps_media', '')
-
-                # "Melhor Solução": resultados.get('melhor_solucao', ''),
+                "rdps_media": resultados.get('rdps_media', ''),
+                "rdps_desvio_padrao": resultados.get('rdps_desvio_padrao', ''),
+                "Melhor Solução": resultados.get('melhor_solucao', ''),
                 # "Média Solução": resultados.get('media_solucao', ''),
                 # "Desvio Padrão Solução": resultados.get('desvio_padrao_solucao', ''),
-                # "Média Tempo de Execução": resultados.get('media_tempos_execucao', ''),
+                "Média Tempo de Execução": resultados.get('media_tempos_execucao', ''),
                 # "Desvio Padrão Tempo Execução": resultados.get('desvio_padrao_tempos_execucao', ''),
-                # "Média Iterações": resultados.get('media_iteracoes', ''),
+                "Média Iterações": resultados.get('media_iteracoes', ''),
                 # "Desvio Padrão Iterações": resultados.get('desvio_padrao_iteracoes', ''),
-                # "Média Iterações Convergência": resultados.get('media_iteracoes_convergencia', ''),
+                "Média Iterações Convergência": resultados.get('media_iteracoes_convergencia', ''),
                 # "Desvio Padrão Iterações Convergência": resultados.get('desvio_padrao_iteracoes_convergencia', '')
             }
 
@@ -194,7 +194,7 @@ def calibrar_simulated_annealing(instancias: list[tuple[str, Dados]], n_execucoe
         print(f"Calibrando Simulated Annealing com {nome_configuracao}: T_inicial={T_inicial}, alpha={alpha} \n")
         solucoes = {}
         for arquivo, dados in instancias:
-            if arquivo in ('exp0_inicial.json', 'exp_30_01.json'):
+            if arquivo not in ('exp08_01.json', 'exp08_04.json', 'exp10_06.json', 'exp12_07.json'):
                 continue
 
             valor_otimo = cplex_optimal[arquivo]
@@ -203,24 +203,39 @@ def calibrar_simulated_annealing(instancias: list[tuple[str, Dados]], n_execucoe
 
             solucoes_simulated = []
             rdps = []
+            tempos = []
+            iteracoes_convergencia = []
+            iteracoes = []
             print(f"Executando arquivo {arquivo} {n_execucoes} vezes")
             for _ in range(n_execucoes):
+                inicio = time.time()
                 solucao, iteracao, iteracao_convergencia = heuristica.simulated_annealing(T_inicial=T_inicial, alpha=alpha)
+                tempo_execucao = time.time() - inicio
                 solucoes_simulated.append(solucao.M)
                 rdps.append(solucao.get_desvio_relativo(valor_otimo))
+                iteracoes_convergencia.append(iteracao_convergencia)
+                iteracoes.append(iteracao)
+                tempos.append(tempo_execucao)
 
             rdps_media = np.mean(rdps) if rdps else None
+            rdps_desvio_padrao = np.std(rdps) if rdps else None
+
             solucoes[arquivo] = {
                 "simulated_annealing": {
                     "T_inicial": T_inicial,
                     "alpha": alpha,
                     "solucoes": solucoes_simulated,
                     "rdps": rdps,
-                    "rdps_media": rdps_media
+                    "rdps_media": rdps_media,
+                    "rdps_desvio_padrao" : rdps_desvio_padrao,
+                    "melhor_solucao": np.min(solucoes_simulated),
+                    "media_iteracoes": np.mean(iteracoes),
+                    "media_iteracoes_convergencia": np.mean(iteracao_convergencia),
+                    "media_tempos_execucao": np.mean(tempos),
                 }
             }
 
-        salvar_resultados_sheets(solucoes, nome_planilha="SA_" + nome_configuracao)
+        salvar_resultados_sheets(solucoes, nome_planilha="SA_Calibracao_" + nome_configuracao)
 
     return solucoes
 
