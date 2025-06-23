@@ -154,10 +154,11 @@ def calibrar_simulated_annealing(instancias: list[tuple[str, Dados]], n_execucoe
     configuracoes = {
         f"C{i+1}": {"T_inicial": T, "alpha": a}
         for i, (T, a) in enumerate([
-            (100, 0.950), (100, 0.970), (100, 0.990), (100, 0.995),
-            (500, 0.950), (500, 0.970), (500, 0.990), (500, 0.995),
-            (1000, 0.950), (1000, 0.970), (1000, 0.990), (1000, 0.995),
-            (2000, 0.950), (2000, 0.970), (2000, 0.990), (2000, 0.995),
+            # (100, 0.950), (100, 0.970), (100, 0.990), (100, 0.995),
+            # (500, 0.950), (500, 0.970), (500, 0.990), (500, 0.995),
+            # (1000, 0.950), (1000, 0.970), (1000, 0.990), (1000, 0.995),
+            (1000, 0.996), (1000, 0.997), (1000, 0.998), (1000, 0.999),
+            # (2000, 0.950), (2000, 0.970), (2000, 0.990), (2000, 0.995),
         ])
     }
 
@@ -235,7 +236,7 @@ def calibrar_simulated_annealing(instancias: list[tuple[str, Dados]], n_execucoe
                 }
             }
 
-        salvar_resultados_sheets(solucoes, nome_planilha="SA_Calibracao_" + nome_configuracao)
+        salvar_resultados_sheets(solucoes, nome_planilha="SA_Ajuste_Fino" + nome_configuracao)
 
     return solucoes
 
