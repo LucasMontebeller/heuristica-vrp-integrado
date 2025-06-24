@@ -23,21 +23,17 @@ def carregar_dados() -> list[tuple[str, Dados]]:
     
     return dados_lista
 
-def execucao_heuristica_multiple_times(heuristica, max_exec=1000, n_execucoes=10):
+def execucao_heuristica_multiple_times(heuristica, n_execucoes=10):
     solucoes = []
     tempos = []
     iteracoes = []
-    iteracoes_convergencia = []
 
     for _ in range(n_execucoes):
-        inicio = time.time()
-        solucao, iteracao, iteracao_convergencia = heuristica(max_exec=max_exec)
-        tempo_execucao = time.time() - inicio
+        solucao, iteracoes, tempo_execucao = heuristica(valor_otimo = )
 
         solucoes.append(solucao.M)
         tempos.append(tempo_execucao)
-        iteracoes.append(iteracao)
-        iteracoes_convergencia.append(iteracao_convergencia)
+        iteracoes.append(iteracoes)
 
     return {
         "solucoes": solucoes,
@@ -48,29 +44,24 @@ def execucao_heuristica_multiple_times(heuristica, max_exec=1000, n_execucoes=10
         "desvio_padrao_tempos_execucao": np.std(tempos),
         "media_iteracoes": np.mean(iteracoes),
         "desvio_padrao_iteracoes": np.std(iteracoes),
-        "media_iteracoes_convergencia": np.mean(iteracoes_convergencia),
-        "desvio_padrao_iteracoes_convergencia": np.std(iteracoes_convergencia)
     }
 
 def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> dict[str, dict]:
     solucoes = {}
-    for arquivo, dados in instancias:
-        # if arquivo != 'exp08_01.json':
-        #     continue
-        
+    for arquivo, dados in instancias:        
+        tempo_limite = 10 # verificar
         modelo = Modelo(dados)
-        heuristica = Heuristica(modelo)
-        max_exec = 5000
+        heuristica = Heuristica(modelo, tempo_limite)
         
-        print(f"Executando arquivo {arquivo} {n_execucoes} vezes")
-        solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, max_exec=max_exec, n_execucoes=n_execucoes)
-        solucoes_annealing = execucao_heuristica_multiple_times(heuristica.simulated_annealing, max_exec=max_exec, n_execucoes=n_execucoes)
-        solucoes_tabu = execucao_heuristica_multiple_times(heuristica.tabu_search, max_exec=max_exec, n_execucoes=n_execucoes)
+        print(f"Executando arquivo {arquivo} em até {tempo_limite} segundos")
+        solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, n_execucoes=n_execucoes)
+        solucoes_annealing = execucao_heuristica_multiple_times(heuristica.simulated_annealing, n_execucoes=n_execucoes)
+        # solucoes_tabu = execucao_heuristica_multiple_times(heuristica.tabu_search, max_exec=max_exec, n_execucoes=n_execucoes)
 
         solucoes[arquivo] = {
             "random_search": solucoes_random,
-            "simulated_annealing": solucoes_annealing,
-            "tabu_search": solucoes_tabu
+            "simulated_annealing": solucoes_annealing
+            # "tabu_search": solucoes_tabu
         }
 
     return solucoes
@@ -148,9 +139,8 @@ def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultado
 
 def main():
     dados = carregar_dados()
-    solucoes = executa_instancias(dados, n_execucoes=1)
-    # salvar_resultados_sheets(solucoes)
-    print('')
+    solucoes = executa_instancias(dados, n_execucoes=10)
+    salvar_resultados_sheets(solucoes)
 
     # for arquivo, resultado in solucoes.items():
     #     print(f"###### {arquivo} ######")

@@ -49,7 +49,7 @@ class Modelo:
 
         return solucao
     
-    def gera_solucao_vizinha(self, solucao: Solucao, maximo_tentativas: int = 100, qtde_swaps: int = 1) -> Solucao:
+    def gera_solucao_vizinha(self, solucao: Solucao, maximo_tentativas: int = 1000, qtde_swaps: int = 1) -> Solucao:
         """Gera uma solução vizinha para o problema. Consiste no swap de lotes entre veículos."""
         
         talhao_empilhadeira_dict = self.__obter_alocacao_talhao_empilhadeira(solucao)

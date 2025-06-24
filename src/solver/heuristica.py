@@ -1,40 +1,51 @@
 import math
+import time
 import random
 from solver.modelo import Modelo
 from solver.solucao import Solucao
 
 class Heuristica():
     """Classe criada para representar as heuristicas utilizadas para resolver o problema."""
-    def __init__(self, modelo: Modelo):
+    def __init__(self, modelo: Modelo, tempo_limite: int):
         self.modelo = modelo
+        self.tempo_limite = tempo_limite
 
-    def random_search(self, max_exec = 100) -> tuple[Solucao, int, int]:
+    def random_search(self, valor_otimo) -> tuple[Solucao, int, int]:
+        inicio = time.time()
+        tempo_para_otimo = None
+
         melhor_solucao = self.modelo.gera_solucao_aleatoria()
         iteracoes = 0
-        iteracoes_convergencia = 0
 
-        while iteracoes < max_exec:
+        while time.time() - inicio < self.tempo_limite:
+            iteracoes += 1
+
             solucao = self.modelo.gera_solucao_aleatoria()
             if solucao.M < melhor_solucao.M:
                 melhor_solucao = solucao
-                iteracoes_convergencia = iteracoes
 
-            iteracoes += 1
+            # Validacao do otimo
+            if solucao.M == valor_otimo:
+                tempo_para_otimo = time.time() - inicio
+                break
 
-        return melhor_solucao, iteracoes, iteracoes_convergencia
+        return melhor_solucao, iteracoes, tempo_para_otimo
 
-    def simulated_annealing(self, T_inicial = 1000, alpha = 0.999, max_exec = 200) -> tuple[Solucao, int, int]:
+    def simulated_annealing(self, valor_otimo, T_inicial = 1000, alpha = 0.999) -> tuple[Solucao, int, int]:
+        inicio = time.time()
+        tempo_para_otimo = None
+
         T = T_inicial
         solucao = self.modelo.gera_solucao_aleatoria()
         melhor_solucao = solucao
         iteracoes = 0
-        iteracoes_convergencia = 0
 
         # Através do fator de Boltzmann, aceita ou não a troca da solução
         aceita_nova_solucao = lambda energia, temperatura: random.random() < math.exp(-energia / temperatura)
+        qtde_swaps = 1 # min(max((iteracoes - iteracoes_convergencia) // 10, 1), 5)
 
-        while iteracoes < max_exec: #and T > 0.01 :
-            qtde_swaps = 1 # min(max((iteracoes - iteracoes_convergencia) // 10, 1), 5)
+        while time.time() - inicio < self.tempo_limite:
+            iteracoes += 1
             nova_solucao = self.modelo.gera_solucao_vizinha(solucao, qtde_swaps=qtde_swaps)
 
             delta_e = nova_solucao.M - solucao.M
@@ -50,12 +61,15 @@ class Heuristica():
             # atualiza o melhor estado
             if solucao.M < melhor_solucao.M:
                 melhor_solucao = solucao
-                iteracoes_convergencia = iteracoes
+
+            # Validacao do otimo
+            if solucao.M == valor_otimo:
+                tempo_para_otimo = time.time() - inicio
+                break
 
             T*=alpha
-            iteracoes += 1
 
-        return melhor_solucao, iteracoes, iteracoes_convergencia
+        return melhor_solucao, iteracoes, tempo_para_otimo
     
     def tabu_search(self, max_exec = 200, tamanho_tabu = 10) -> tuple[Solucao, int, int]:
         solucao = self.modelo.gera_solucao_aleatoria()
