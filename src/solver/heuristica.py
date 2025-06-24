@@ -12,7 +12,7 @@ class Heuristica():
 
     def random_search(self, valor_otimo) -> tuple[Solucao, int, int]:
         inicio = time.time()
-        tempo_para_otimo = None
+        tempo_execucao = self.tempo_limite
 
         melhor_solucao = self.modelo.gera_solucao_aleatoria()
         iteracoes = 0
@@ -25,15 +25,15 @@ class Heuristica():
                 melhor_solucao = solucao
 
             # Validacao do otimo
-            if solucao.M == valor_otimo:
-                tempo_para_otimo = time.time() - inicio
+            if math.isclose(melhor_solucao.M, valor_otimo, abs_tol=0.001):
+                tempo_execucao = time.time() - inicio
                 break
 
-        return melhor_solucao, iteracoes, tempo_para_otimo
+        return melhor_solucao, iteracoes, tempo_execucao
 
     def simulated_annealing(self, valor_otimo, T_inicial = 1000, alpha = 0.999) -> tuple[Solucao, int, int]:
         inicio = time.time()
-        tempo_para_otimo = None
+        tempo_execucao = self.tempo_limite
 
         T = T_inicial
         solucao = self.modelo.gera_solucao_aleatoria()
@@ -63,13 +63,13 @@ class Heuristica():
                 melhor_solucao = solucao
 
             # Validacao do otimo
-            if solucao.M == valor_otimo:
-                tempo_para_otimo = time.time() - inicio
+            if math.isclose(melhor_solucao.M, valor_otimo, abs_tol=0.001):
+                tempo_execucao = time.time() - inicio
                 break
 
             T*=alpha
 
-        return melhor_solucao, iteracoes, tempo_para_otimo
+        return melhor_solucao, iteracoes, tempo_execucao
     
     def tabu_search(self, max_exec = 200, tamanho_tabu = 10) -> tuple[Solucao, int, int]:
         solucao = self.modelo.gera_solucao_aleatoria()

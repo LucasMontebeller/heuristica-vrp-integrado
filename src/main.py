@@ -1,11 +1,11 @@
 import json
 import os
-import time
 import numpy as np
 import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
 from solver import Dados, Modelo, Heuristica
+import gc
 
 cplex_optimal = {
     "exp08_01.json": 16.238,
@@ -74,16 +74,25 @@ def execucao_heuristica_multiple_times(heuristica, valor_otimo, n_execucoes=10):
 
 def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> dict[str, dict]:
     solucoes = {}
-    for arquivo, dados in instancias:        
+    for arquivo, dados in instancias:
+        if arquivo not in ('exp08_01.json'):
+            continue
+                
         tempo_limite = 10 # verificar
         modelo = Modelo(dados)
-        heuristica = Heuristica(modelo, tempo_limite)
         valor_otimo = cplex_optimal[arquivo]
         
         print(f"Executando arquivo {arquivo} em até {tempo_limite} segundos")
-        solucoes_annealing = execucao_heuristica_multiple_times(heuristica.simulated_annealing, n_execucoes=n_execucoes, valor_otimo=valor_otimo)
-        solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, n_execucoes=n_execucoes, valor_otimo=valor_otimo)
-        # solucoes_tabu = execucao_heuristica_multiple_times(heuristica.tabu_search, max_exec=max_exec, n_execucoes=n_execucoes)
+
+        # Random Search
+        heuristica_random  = Heuristica(modelo, tempo_limite)
+        gc.collect()
+        solucoes_random = execucao_heuristica_multiple_times(heuristica_random.random_search, n_execucoes=n_execucoes, valor_otimo=valor_otimo)
+
+        # Simulated Annealing
+        heuristica_annealing = Heuristica(modelo, tempo_limite)
+        gc.collect()  # força coleta de lixo
+        solucoes_annealing = execucao_heuristica_multiple_times(heuristica_annealing.simulated_annealing, n_execucoes=n_execucoes, valor_otimo=valor_otimo)
 
         solucoes[arquivo] = {
             "random_search": solucoes_random,
@@ -97,7 +106,7 @@ def salvar_resultados(solucoes: dict[str, dict], nome_arquivo="resultados.json")
     with open(nome_arquivo, "w", encoding="utf-8") as f:
         json.dump(solucoes, f, ensure_ascii=False, indent=4)
 
-def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultados_100_exec"):
+def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="rs_vs_sa_tempo_maximo_10seg"):
     credenciais_arquivo = 'googleconfig.json'
     SCOPES = [
         'https://www.googleapis.com/auth/spreadsheets',
