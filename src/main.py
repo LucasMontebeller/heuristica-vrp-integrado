@@ -7,6 +7,32 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 from solver import Dados, Modelo, Heuristica
 
+cplex_optimal = {
+    "exp08_01.json": 16.238,
+    "exp08_02.json": 12.185,
+    "exp08_03.json": 14.238,
+    "exp08_04.json": 14.222,
+    "exp08_05.json": 11.170,
+    "exp08_06.json": 10.014,
+    "exp08_07.json": 6.677,
+
+    "exp10_01.json": 18.238,
+    "exp10_02.json": 14.185,
+    "exp10_03.json": 15.238,
+    "exp10_04.json": 16.223,
+    "exp10_05.json": 13.170,
+    "exp10_06.json": 11.930,
+    "exp10_07.json": 8.107,
+
+    "exp12_01.json": 23.290,
+    "exp12_02.json": 17.561,
+    "exp12_03.json": 20.290,
+    "exp12_04.json": 18.890,
+    "exp12_05.json": 16.545,
+    "exp12_06.json": 15.406,
+    "exp12_07.json": 10.402,
+    }
+
 def carregar_dados() -> list[tuple[str, Dados]]:
     pasta = "data"
     arquivos_json = [f for f in os.listdir(pasta) if f.endswith(".json")]
@@ -23,17 +49,17 @@ def carregar_dados() -> list[tuple[str, Dados]]:
     
     return dados_lista
 
-def execucao_heuristica_multiple_times(heuristica, n_execucoes=10):
+def execucao_heuristica_multiple_times(heuristica, valor_otimo, n_execucoes=10):
     solucoes = []
     tempos = []
-    iteracoes = []
+    iteracoes_list = []
 
     for _ in range(n_execucoes):
-        solucao, iteracoes, tempo_execucao = heuristica(valor_otimo = )
+        solucao, iteracoes, tempo_execucao = heuristica(valor_otimo=valor_otimo)
 
         solucoes.append(solucao.M)
         tempos.append(tempo_execucao)
-        iteracoes.append(iteracoes)
+        iteracoes_list.append(iteracoes)
 
     return {
         "solucoes": solucoes,
@@ -42,8 +68,8 @@ def execucao_heuristica_multiple_times(heuristica, n_execucoes=10):
         "desvio_padrao_solucao": np.std(solucoes),
         "media_tempos_execucao": np.mean(tempos),
         "desvio_padrao_tempos_execucao": np.std(tempos),
-        "media_iteracoes": np.mean(iteracoes),
-        "desvio_padrao_iteracoes": np.std(iteracoes),
+        "media_iteracoes": np.mean(iteracoes_list),
+        "desvio_padrao_iteracoes": np.std(iteracoes_list),
     }
 
 def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> dict[str, dict]:
@@ -52,10 +78,11 @@ def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> d
         tempo_limite = 10 # verificar
         modelo = Modelo(dados)
         heuristica = Heuristica(modelo, tempo_limite)
+        valor_otimo = cplex_optimal[arquivo]
         
         print(f"Executando arquivo {arquivo} em até {tempo_limite} segundos")
-        solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, n_execucoes=n_execucoes)
-        solucoes_annealing = execucao_heuristica_multiple_times(heuristica.simulated_annealing, n_execucoes=n_execucoes)
+        solucoes_annealing = execucao_heuristica_multiple_times(heuristica.simulated_annealing, n_execucoes=n_execucoes, valor_otimo=valor_otimo)
+        solucoes_random = execucao_heuristica_multiple_times(heuristica.random_search, n_execucoes=n_execucoes, valor_otimo=valor_otimo)
         # solucoes_tabu = execucao_heuristica_multiple_times(heuristica.tabu_search, max_exec=max_exec, n_execucoes=n_execucoes)
 
         solucoes[arquivo] = {
@@ -114,9 +141,7 @@ def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="resultado
                 "Média Tempo de Execução": resultados.get('media_tempos_execucao', ''),
                 "Desvio Padrão Tempo Execução": resultados.get('desvio_padrao_tempos_execucao', ''),
                 "Média Iterações": resultados.get('media_iteracoes', ''),
-                "Desvio Padrão Iterações": resultados.get('desvio_padrao_iteracoes', ''),
-                "Média Iterações Convergência": resultados.get('media_iteracoes_convergencia', ''),
-                "Desvio Padrão Iterações Convergência": resultados.get('desvio_padrao_iteracoes_convergencia', '')
+                "Desvio Padrão Iterações": resultados.get('desvio_padrao_iteracoes', '')
             }
 
             todas_linhas_resumo.append(linha_resumo)
