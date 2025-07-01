@@ -33,10 +33,10 @@ cplex_optimal = {
     "exp12_07.json": 10.402,
 
     "Mutz_G1_01.json": 32.2,
-    "Mutz_G2_08": 17,
-    "Mutz_G3_14": 10.9499,
-    "Mutz_G4_16": 20.8249,
-    "Mutz_G5_20": 32.5
+    "Mutz_G2_08.json": 17,
+    "Mutz_G3_14.json": 10.9499,
+    "Mutz_G4_16.json": 20.8249,
+    "Mutz_G5_20.json": 32.5
     }
 
 def carregar_dados() -> list[tuple[str, Dados]]:
@@ -81,7 +81,7 @@ def execucao_heuristica_multiple_times(heuristica, valor_otimo, n_execucoes=10):
 def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> dict[str, dict]:
     solucoes = {}
     for arquivo, dados in instancias:
-        if arquivo not in ('Mutz_G1_01.json'):
+        if arquivo not in ('Mutz_G1_01.json', 'Mutz_G2_08.json', 'Mutz_G3_14.json', 'Mutz_G4_16.json', 'Mutz_G5_20.json'):
             continue
                 
         tempo_limite = 10 # verificar
