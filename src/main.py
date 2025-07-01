@@ -31,6 +31,12 @@ cplex_optimal = {
     "exp12_05.json": 16.545,
     "exp12_06.json": 15.406,
     "exp12_07.json": 10.402,
+
+    "Mutz_G1_01.json": 32.2,
+    "Mutz_G2_08": 17,
+    "Mutz_G3_14": 10.9499,
+    "Mutz_G4_16": 20.8249,
+    "Mutz_G5_20": 32.5
     }
 
 def carregar_dados() -> list[tuple[str, Dados]]:
@@ -75,7 +81,7 @@ def execucao_heuristica_multiple_times(heuristica, valor_otimo, n_execucoes=10):
 def executa_instancias(instancias: list[tuple[str, Dados]], n_execucoes=10) -> dict[str, dict]:
     solucoes = {}
     for arquivo, dados in instancias:
-        if arquivo not in ('exp08_01.json'):
+        if arquivo not in ('Mutz_G1_01.json'):
             continue
                 
         tempo_limite = 10 # verificar
@@ -106,7 +112,7 @@ def salvar_resultados(solucoes: dict[str, dict], nome_arquivo="resultados.json")
     with open(nome_arquivo, "w", encoding="utf-8") as f:
         json.dump(solucoes, f, ensure_ascii=False, indent=4)
 
-def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="rs_vs_sa_tempo_maximo_10seg"):
+def salvar_resultados_sheets(solucoes: dict[str, dict], nome_planilha="rs_sa_mutz_10seg"):
     credenciais_arquivo = 'googleconfig.json'
     SCOPES = [
         'https://www.googleapis.com/auth/spreadsheets',
